@@ -1,3 +1,3 @@
-# vehicle_mission default parameters
+# Placeholder — real parameters (with TBD calibration defaults for the waypoint) are added in Task 3.
 vehicle_mission:
   ros__parameters: {}
