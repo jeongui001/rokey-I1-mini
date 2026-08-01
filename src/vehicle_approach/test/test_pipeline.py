@@ -112,6 +112,28 @@ def test_repeated_same_position_does_not_resend_goal():
     assert second.goal_pose is None  # 변화량이 재전송 임계치 미만이면 재전송하지 않음 (스펙 §5.2.5)
 
 
+def test_vehicle_moved_past_threshold_resends_goal_with_updated_position():
+    pipeline = _make_pipeline(resend_threshold_m=0.05, completion_threshold_m=0.1)
+    depth_image = np.full((480, 640), 2000, dtype=np.uint16)
+    detection = Detection(x1=300.0, y1=220.0, x2=340.0, y2=260.0, confidence=0.9)
+    # bbox 중심을 주점에서 위로 옮겨(v 감소) 첫 프레임보다 map y가 재전송 임계치(0.05m) 이상 이동하도록 함
+    # (카메라->base_link 변환이 Y축 90도 회전이라 u 이동은 map z(미사용)로, v 이동은 map y로 매핑됨)
+    moved_detection = Detection(x1=300.0, y1=170.0, x2=340.0, y2=210.0, confidence=0.9)
+
+    first = pipeline.process_frame(
+        [detection], depth_image, fx=500.0, fy=500.0, cx=320.0, cy=240.0,
+        stamp=_stamp(), robot_x=2.0, robot_y=0.0,
+    )
+    second = pipeline.process_frame(
+        [moved_detection], depth_image, fx=500.0, fy=500.0, cx=320.0, cy=240.0,
+        stamp=_stamp(), robot_x=2.0, robot_y=0.0,
+    )
+
+    assert first.goal_pose is not None
+    assert second.goal_pose is not None
+    assert second.goal_pose.pose.position != first.goal_pose.pose.position
+
+
 def test_close_distance_marks_completed_and_stops_sending_goal():
     pipeline = _make_pipeline(completion_threshold_m=3.0)  # 실제 거리(1.721m)보다 큰 임계치
     depth_image = np.full((480, 640), 2000, dtype=np.uint16)
