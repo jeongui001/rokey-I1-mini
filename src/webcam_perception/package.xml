@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>webcam_perception</name>
+  <version>0.0.1</version>
+  <description>웹캠 ROI 감시, 정지 판정, 픽셀→map 변환 후 차량 초기 위치 발행</description>
+  <maintainer email="hwangjeongui01@gmail.com">hwangjeongui</maintainer>
+  <license>Apache-2.0</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
