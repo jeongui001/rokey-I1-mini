@@ -1,9 +1,14 @@
+# Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml
 vehicle_approach_node:
   ros__parameters:
     yolo_weights_path: "/absolute/path/to/oakd_yolo_weights.pt"
     vehicle_class_id: 0
-    camera_frame: "camera_frame"
+    camera_frame: "camera_frame"  # TBD: 실제 오크디 RGB optical frame 이름으로 교체 (RGB 내부파라미터로 역투영하므로 depth frame이 아니라 RGB optical frame이어야 함)
     base_frame: "base_link"
+    # 역투영/뎁스보정 하드웨어 가정 (코드가 검증하지 않으므로 배선 시 반드시 확인):
+    #   1) depth_topic은 rgb_topic과 픽셀 정렬(pixel-aligned)되어야 함 -- 같은 해상도, 같은 픽셀 좌표계
+    #   2) depth_topic은 16UC1 인코딩(밀리미터 단위)이어야 함 -- 코드가 /1000.0으로 미터 변환
+    #   3) camera_info_topic의 내부파라미터(K)는 rgb_topic과 동일한 해상도/센서 기준이어야 함
     rgb_topic: "/oakd/rgb/image_raw"
     depth_topic: "/oakd/stereo/image_raw"
     camera_info_topic: "/oakd/rgb/camera_info"
