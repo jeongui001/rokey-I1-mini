@@ -1,3 +1,6 @@
-# Placeholder — real parameters (with TBD calibration defaults for the waypoint) are added in Task 3.
-vehicle_mission:
-  ros__parameters: {}
+vehicle_mission_node:
+  ros__parameters:
+    # 아래 값들은 스펙 §7 TBD 항목 — 실측 후 확정 필요한 대기 지점 좌표의 임시 기본값이다.
+    waypoint_x: 0.0    # TBD: 맵 상 대기 지점 x(m)
+    waypoint_y: 0.0    # TBD: 맵 상 대기 지점 y(m)
+    waypoint_yaw: 0.0  # TBD: 대기 지점에서의 로봇 헤딩(rad)

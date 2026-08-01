@@ -17,7 +17,7 @@ setup(
     maintainer_email='hwangjeongui01@gmail.com',
     description='대기 지점 이동 후 vehicle_approach_node를 활성화하는 미션 상태 전이 노드',
     license='Apache-2.0',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
             'vehicle_mission_node = vehicle_mission.vehicle_mission_node:main',
