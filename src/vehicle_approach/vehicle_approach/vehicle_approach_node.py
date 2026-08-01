@@ -85,6 +85,10 @@ class VehicleApproachNode(Node):
         self._sync.registerCallback(self._on_synchronized)
 
     def _on_enable(self, msg: Bool) -> None:
+        if msg.data and not self._enabled:
+            self.get_logger().info('vehicle_approach enabled')
+        elif not msg.data and self._enabled:
+            self._pipeline.moving_average.reset()
         self._enabled = msg.data
 
     def _on_synchronized(self, rgb_msg: Image, depth_msg: Image, info_msg: CameraInfo) -> None:
@@ -108,9 +112,11 @@ class VehicleApproachNode(Node):
             self._detection_center_publisher.publish(result.detection_center)
 
         if result.completed:
+            self.get_logger().info('vehicle approach completed')
             if self._current_goal_handle is not None:
                 self._current_goal_handle.cancel_goal_async()
                 self._current_goal_handle = None
+                self.get_logger().info('goal cancelled')
             return
 
         if result.goal_pose is not None:
@@ -135,15 +141,24 @@ class VehicleApproachNode(Node):
         return (transform.transform.translation.x, transform.transform.translation.y)
 
     def _send_goal(self, goal_pose) -> None:
+        if not self._action_client.server_is_ready():
+            self.get_logger().warn('navigate_to_pose server not ready, skipping goal send')
+            return
+
         goal = NavigateToPose.Goal()
         goal.pose = goal_pose
+        self.get_logger().info(
+            f'sending goal: x={goal_pose.pose.position.x:.3f}, y={goal_pose.pose.position.y:.3f}'
+        )
         future = self._action_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_response)
 
     def _on_goal_response(self, future) -> None:
         goal_handle = future.result()
-        if goal_handle.accepted:
-            self._current_goal_handle = goal_handle
+        if not goal_handle.accepted:
+            self.get_logger().warn('goal rejected by Nav2')
+            return
+        self._current_goal_handle = goal_handle
 
 
 def main(args=None):
@@ -152,5 +167,6 @@ def main(args=None):
     try:
         rclpy.spin(node)
     finally:
+        node._action_client.destroy()
         node.destroy_node()
         rclpy.shutdown()
