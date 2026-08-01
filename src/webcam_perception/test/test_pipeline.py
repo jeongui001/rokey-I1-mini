@@ -74,3 +74,26 @@ def test_leaving_roi_then_stopping_again_republishes():
     pipeline.process_detections([detection], now_sec=5.0)
     second = pipeline.process_detections([detection], now_sec=6.0)
     assert second is not None
+
+
+def test_single_frame_jitter_does_not_cause_duplicate_publish():
+    # 계속 주차된 차량 중 단일 프레임에서 튀는(jitter) bbox 하나만 들어와도
+    # 차량을 놓친 것(best is None)은 아니므로 재발행 가드가 풀리면 안 된다
+    # (스펙 §2 step2 "이벤트당 1회 전달").
+    pipeline = _make_pipeline(duration_s=2.0, pixel_threshold=5.0)
+    parked = Detection(x1=40.0, y1=40.0, x2=60.0, y2=60.0, confidence=0.9)  # center (50, 50)
+    jitter = Detection(x1=50.0, y1=40.0, x2=70.0, y2=60.0, confidence=0.9)  # center (60, 50)
+
+    results = [
+        pipeline.process_detections([parked], now_sec=0.0),
+        pipeline.process_detections([parked], now_sec=1.0),
+        pipeline.process_detections([parked], now_sec=2.0),
+        pipeline.process_detections([parked], now_sec=3.0),
+        pipeline.process_detections([jitter], now_sec=4.0),  # 단일 프레임 노이즈, 트래킹은 유지 중
+        pipeline.process_detections([parked], now_sec=5.0),
+        pipeline.process_detections([parked], now_sec=6.0),
+        pipeline.process_detections([parked], now_sec=7.0),
+    ]
+
+    publishes = [r for r in results if r is not None]
+    assert len(publishes) == 1

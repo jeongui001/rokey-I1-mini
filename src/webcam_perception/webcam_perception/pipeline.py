@@ -38,7 +38,6 @@ class VehicleStopPipeline:
         stopped = self.stop_detector.update(now_sec, cx, cy)
 
         if not stopped:
-            self._published_for_current_stop = False
             return None
 
         if self._published_for_current_stop:
