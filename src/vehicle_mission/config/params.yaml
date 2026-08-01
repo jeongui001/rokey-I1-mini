@@ -1,3 +1,4 @@
+# Run with: ros2 run vehicle_mission vehicle_mission_node --ros-args --params-file src/vehicle_mission/config/params.yaml
 vehicle_mission_node:
   ros__parameters:
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 후 확정 필요한 대기 지점 좌표의 임시 기본값이다.

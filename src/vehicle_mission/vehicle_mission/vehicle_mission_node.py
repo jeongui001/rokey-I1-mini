@@ -48,14 +48,17 @@ class VehicleMissionNode(Node):
         )
 
     def send_waypoint_goal(self) -> None:
-        pose = waypoint_to_pose_stamped(
-            self.get_parameter('waypoint_x').value,
-            self.get_parameter('waypoint_y').value,
-            self.get_parameter('waypoint_yaw').value,
-        )
+        x = self.get_parameter('waypoint_x').value
+        y = self.get_parameter('waypoint_y').value
+        yaw = self.get_parameter('waypoint_yaw').value
+        pose = waypoint_to_pose_stamped(x, y, yaw)
         goal = NavigateToPose.Goal()
         goal.pose = pose
 
+        self.get_logger().info(
+            f'sending waypoint goal: x={x:.3f}, y={y:.3f}, yaw={yaw:.3f}'
+        )
+        self.get_logger().info('waiting for Nav2 navigate_to_pose action server...')
         self._action_client.wait_for_server()
         future = self._action_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_response)
@@ -74,14 +77,20 @@ class VehicleMissionNode(Node):
             msg = Bool()
             msg.data = True
             self._enable_publisher.publish(msg)
+            self.get_logger().info('waypoint reached, vehicle_approach enabled')
+        else:
+            self.get_logger().warn(
+                f'nav goal finished with status={result.status}, approach not enabled'
+            )
 
 
 def main(args=None):
     rclpy.init(args=args)
     node = VehicleMissionNode()
-    node.send_waypoint_goal()
     try:
+        node.send_waypoint_goal()
         rclpy.spin(node)
     finally:
+        node._action_client.destroy()
         node.destroy_node()
         rclpy.shutdown()
