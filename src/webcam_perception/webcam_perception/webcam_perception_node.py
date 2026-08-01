@@ -53,6 +53,8 @@ class WebcamPerceptionNode(Node):
         pixel_points = _pairs(list(self.get_parameter('homography_pixel_points').value))
         map_points = _pairs(list(self.get_parameter('homography_map_points').value))
         homography_matrix = build_homography_matrix(pixel_points, map_points)
+        if homography_matrix is None:
+            raise ValueError('호모그래피 계산 실패 — 캘리브레이션 대응점을 확인하세요')
 
         stop_detector = StopDetector(
             duration_s=self.get_parameter('stop_duration_s').value,
@@ -74,6 +76,8 @@ class WebcamPerceptionNode(Node):
         self._capture = capture
 
         if detector is None:
+            if YOLO is None:
+                raise ImportError('ultralytics가 필요합니다 — pip install ultralytics')
             detector = YOLO(self.get_parameter('yolo_weights_path').value)
         self._detector = detector
 

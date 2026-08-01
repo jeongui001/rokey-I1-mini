@@ -9,6 +9,9 @@
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <!-- ultralytics는 rosdep 키가 없어 여기 선언 불가: pip install ultralytics 로 별도 설치 필요 -->
 
   <test_depend>python3-pytest</test_depend>
 

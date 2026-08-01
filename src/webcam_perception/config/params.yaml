@@ -1,3 +1,4 @@
+# Run with: ros2 run webcam_perception webcam_perception_node --ros-args --params-file src/webcam_perception/config/params.yaml
 webcam_perception_node:
   ros__parameters:
     camera_index: 0

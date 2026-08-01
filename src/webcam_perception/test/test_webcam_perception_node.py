@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import rclpy
 from geometry_msgs.msg import PointStamped
@@ -62,5 +64,10 @@ def test_stopped_vehicle_publishes_map_pose():
 
         assert len(received) == 1
         assert received[0].header.frame_id == 'map'
+        # 기본 호모그래피 파라미터(px [0,0,640,0,0,480,640,480] -> map [0,0,1,0,0,1,1,1])로
+        # bbox 하단 중심 (120, 180)이 (120/640, 180/480) = (0.1875, 0.375)로 변환되는지 검증한다.
+        # bbox 중심이 아닌 하단 중심을 쓰는지가 x는 같고 y만 달라지므로 y 검증이 핵심.
+        assert math.isclose(received[0].point.x, 0.1875, abs_tol=1e-6)
+        assert math.isclose(received[0].point.y, 0.375, abs_tol=1e-6)
     finally:
         rclpy.shutdown()
