@@ -11,6 +11,8 @@
     2. YOLO 가중치 2개
         1. 웹캠용
         2. AMR(오크디)용
+    3. 웹캠 감지 영역(ROI) — 웹캠 픽셀 좌표 기준 사각형
+    4. 웹캠 픽셀 ↔ map 좌표 매칭 테이블 (사전 캘리브레이션)
 2. 웹캠이 지정된 감지 영역(웹캠 픽셀 기준 사각형 ROI)을 상시 감시하다가, 차량이 그 영역에 들어온 후 멈추면 위치를 계산해 로봇(터틀봇)에게 전달한다.
 3. 로봇이 (전달받은 위치를 참고해) 대기 지점으로 이동
 4. 로봇 카메라가 차를 직접 봄
@@ -41,21 +43,14 @@
     - 감지 영역(ROI): 웹캠 픽셀 좌표 기준 사각형 (예: x_min, y_min, x_max, y_max)
     - ROI 진입 판정 로직: 탐지 중심점이 ROI 내부에 들어왔는지 매 프레임 확인, 정지 여부까지 확인할지(연속 프레임 위치 변화 없음 판정) 결정 필요
 
-### W3층 — 픽셀 → map 좌표 변환
+### W3층 — 픽셀 → map 좌표 변환 + 로봇 전달
 
 - 좌표계: 웹캠 픽셀 좌표계 → map
 - 입력: W2층의 탐지 중심 픽셀좌표 (cx, cy)
-- 출력: 차량의 map 좌표 (x, y) → W4층
+- 출력: 차량의 map 좌표 (x, y) → 터틀봇(AMR)에게 전달
 - 필요한 정보:
     - 사전 캘리브레이션된 픽셀↔map 매칭 테이블 (웹캠 화각 내 주요 지점들의 픽셀좌표와 실제 map 좌표를 미리 매칭해둔 테이블)
     - 매칭 테이블에 없는 픽셀에 대한 보간 방식 (예: 주변 매칭점 기반 선형 보간)
-
-### W4층 — 로봇에게 위치 전달
-
-- 좌표계: map
-- 입력: W3층의 차량 map 좌표
-- 출력: 터틀봇(AMR)에게 전달되는 차량의 초기 map 좌표
-- 필요한 정보:
     - 웹캠 → 로봇 간 위치 전달 방식 (토픽/메시지 형식 등)
     - 이 위치는 초기 추정치이며, nav 파이프라인의 최종 목표(7층)는 로봇이 직접 오크디로 관측한 위치로 갱신됨을 명시
 
@@ -65,7 +60,7 @@
 
 - 좌표계: 라이다 센서 프레임 (2D range scan) / map (map.yaml 기준 전역 고정 좌표계)
 - 입력: map.yaml (사전 구축된 정적 지도), 라이다 스캔 데이터, 로봇 오도메트리(odom)
-- 출력: TF(base_link ↔ map) → 5층(camera_frame→map 변환에 필요). 6층·7층이 쓰는 "로봇 자신의 map 절대좌표"는 이 TF의 translation 성분에서 유도됨(별도 발행 데이터 아님)
+- 출력: TF(base_link ↔ map) → 5층(camera_frame→map 변환에 필요). 7층이 쓰는 "로봇 자신의 map 절대좌표"는 이 TF의 translation 성분에서 유도됨(별도 발행 데이터 아님)
 - 필요한 정보:
     - 라이다 스캔 스트림 (LaserScan 또는 PointCloud)
     - map.yaml (사전 구축된 정적 지도, occupancy grid)
@@ -74,39 +69,38 @@
 
 ### 2층 — 카메라 원본 데이터
 
-- 좌표계: 없음 / 각 센서 고유 프레임 (RGB는 픽셀 그리드, depth는 optical frame 기준 픽셀+거리값)
+- 좌표계: RGB는 픽셀 좌표계 (2D) 기준 / Depth·CameraInfo는 camera_frame(카메라 광학 좌표계, depth 메시지의 header.frame_id) 기준
 - 입력: 없음 (오크디 하드웨어 원본 출력)
 - 출력: RGB 스트림 → 3층, Depth 스트림 + CameraInfo → 4층, TF(camera_frame ↔ base_link) → 5층(camera_frame→map 변환의 일부)
 - 필요한 정보:
-    - RGB 스트림 (오크디 rgb/image_raw/compressed, rgb/preview/image_raw)
-    - Depth 스트림 (오크디 stereo/image_raw, 16bit, mm 단위)
-    - CameraInfo (K 행렬 원본)
+    - RGB 스트림 (오크디 rgb/image_raw, 704×704)
+    - Depth 스트림 (오크디 stereo/image_raw, 16bit, mm 단위, `i_align_depth: true`로 RGB와 동일 그리드에 정렬됨)
+    - CameraInfo (rgb/camera_info, K 행렬, 704×704 기준)
     - 오크디 드라이버 + robot_state_publisher가 broadcast하는 TF (camera_frame ↔ base_link, 정적) — base_link ↔ map은 1층(라이다 로컬라이제이션)에서 별도로 제공됨
     - 실시간 프레임레이트와 처리 지연(latency) — 로봇 접근 중 위치 갱신 반응성에 영향
     - 최신 프레임만 유지하는 큐 정책(maxsize=1)의 트레이드오프: 지연 누적은 막지만 버려지는 프레임만큼 실질 샘플링 주기가 줄어 6층 평균화 정밀도에 영향을 줌
 
 ### 3층 — 객체 탐지 결과 (현재 프레임에서 차량의 화면상 위치)
 
-- 좌표계: RGB 이미지 픽셀 좌표계 (2D, 단위 px)
+- 좌표계: 픽셀 좌표계 (2D, 단위 px)
 - 입력: 2층의 RGB 스트림
 - 출력: 탐지 중심 픽셀좌표 (cx, cy) [+ 바운딩박스] → 4층으로 전달
 - 필요한 정보:
-    - RGB 원본 프레임 (오크디 rgb preview 스트림)
+    - RGB 원본 프레임 (오크디 rgb/image_raw 스트림, 704×704)
     - 학습된 YOLO 가중치 파일 및 클래스 이름 매핑
     - 바운딩박스 좌표(x1,y1,x2,y2) → 중심점 계산: cx=(x1+x2)/2, cy=(y1+y2)/2
     - 탐지 결과는 현재 Point(헤더 없음)로 발행 — 정지 차량 대상이라 속도 계산이 필요 없으므로 타임스탬프 요구사항 없음
-    - 탐지에 쓴 RGB 해상도와 4층에서 내부파라미터를 뽑아온 RGB 해상도가 일치해야 함 (다르면 u,v 스케일 보정 필요)
+    - 탐지에 쓴 RGB 해상도(704×704)와 4층 CameraInfo 해상도(704×704)가 동일 — 스케일 보정 불필요
 
 ### 4층 — 픽셀좌표 + 깊이값 + 카메라 내부파라미터
 
-- 좌표계: 이미지 픽셀 그리드 (2D, 원점 좌상단, 단위 px) / 깊이는 mm 단위 스칼라
+- 좌표계: 픽셀 좌표계 (2D, 원점 좌상단, 단위 px) / 깊이는 mm 단위 스칼라
 - 입력: 3층의 탐지 중심 픽셀좌표 (u, v), 2층의 Depth 스트림 + CameraInfo(K 행렬)
 - 출력: 픽셀좌표 (u, v), 보정된 깊이값 z(m), 내부파라미터 fx, fy, cx, cy → 5층으로 전달
 - 필요한 정보:
     - 3층에서 나온 탐지 중심 픽셀좌표 (u, v)
     - 해당 픽셀 위치의 깊이값: depth[v, u] / 1000.0 (mm → m)
     - camera_info 토픽에서 얻는 내부파라미터 K 행렬 (fx=K[0,0], fy=K[1,1], cx=K[0,2], cy=K[1,2])
-    - RGB와 depth의 해상도/화각을 맞추는 정합 보정 (크롭+리사이즈, CROP_W=0.26, CROP_H=0.18)
     - RGB-depth 간 시간 동기화 (ApproximateTimeSynchronizer, slop 0.15초) — 차량이 정지해 있으므로 동기화 오차가 위치 오차에 미치는 영향은 크지 않음
     - **뎁스 보정**: 원본 뎁스값에 [4-1. 뎁스 보정 알고리즘](#4-1-뎁스-보정-알고리즘) 적용
 
@@ -166,11 +160,11 @@ def correct_depth(raw_depth_m: float) -> float | None:
 - 정확도를 높이려면 0.6~2m 구간을 촘촘하게(0.1m 간격) 재측정해서 회귀식을 다시 산출할 것.
 - 조명, 표면 재질(반사/투명 등)에 따라 오차 패턴이 달라질 수 있으므로, 실제 사용 환경과 동일한 조건에서 캘리브레이션 데이터를 수집해야 함.
 
-### 5층 — 카메라 광학 좌표계 기준 차량의 3D 상대 위치
+### 5층 — 차량의 3D 상대 위치 → map 2D 좌표 변환
 
-- 좌표계: 카메라 광학 좌표계 (camera_frame — depth 메시지의 header.frame_id)
+- 좌표계: camera_frame (카메라 광학 좌표계, 내부 역투영 결과) → map (최종 출력, 2D)
 - 입력: 4층의 픽셀좌표 (u, v), 보정된 깊이값 z, 내부파라미터 fx, fy, cx, cy / 1층의 TF(base_link↔map) + 2층의 TF(camera_frame↔base_link) — camera_frame→map 변환용
-- 출력: map 좌표로 변환된 차량의 3D 위치 (x, y) → 6층으로 전달 (역투영으로 camera_frame 좌표를 구한 뒤, 같은 레이어 안에서 TF 체이닝까지 수행해서 최종적으로 map 좌표를 내보냄)
+- 출력: map 좌표로 변환된 차량의 2D 위치 (x, y) → 6층으로 전달 (역투영으로 camera_frame 좌표를 구한 뒤, 같은 레이어 안에서 TF 체이닝까지 수행해서 최종적으로 map 좌표를 내보냄)
 - 필요한 정보:
     - 4층에서 산출된 픽셀좌표 (u, v), 깊이값 z, 내부파라미터 fx, fy, cx, cy
     - 역투영 공식: X=(u-cx)*z/fx, Y=(v-cy)*z/fy, Z=z → camera_frame 기준 3D 상대좌표 (X, Y, Z)
@@ -180,22 +174,21 @@ def correct_depth(raw_depth_m: float) -> float | None:
 ### 6층 — 차량의 위치 이력 (노이즈 평균화)
 
 - 좌표계: map
-- 입력: 5층에서 TF 변환된 차량의 map 좌표 (매 탐지 프레임), 1층에서 제공되는 로봇 자신의 map 좌표
+- 입력: 5층에서 TF 변환된 차량의 map 좌표 (매 탐지 프레임)
 - 출력: 평균화(노이즈 제거)된 차량의 map 좌표 (x, y) → 7층으로 전달
 - 필요한 정보:
     - 매 탐지마다 계산된 차량의 map 절대좌표를 쌓은 시계열 버퍼 (슬라이딩 윈도우, 예: 최근 N개) — 정지 차량이므로 속도 계산이 아닌 탐지 흔들림 노이즈를 줄이기 위한 평균화 용도로만 사용
-    - 프레임 간 동일 객체 매칭 로직 (현재는 차량 1대만 가정하므로 최근접 매칭으로 충분, 다수 차량이면 별도 추적 ID 필요)
-    - 평균화/필터 방식 (이동평균 등)으로 탐지 잡음 감소
-    - 로봇 자신의 map 절대좌표 (1층의 base_link↔map TF translation 성분에서 유도)
+    - 노이즈 제거 방식은 이동평균만 사용 (다른 전처리/이상치 제거는 현재 범위 밖)
+    - 프레임 간 동일 객체 매칭: 범위(§0)상 차량 1대만 대상이므로 매칭 로직 불필요. "로봇 자신의 map 좌표"를 이용한 다중 객체 매칭은 다수 차량 확장 시에만 필요하므로 현재 입력에서 제외
 
 ### 7층 — 로봇의 목표 지점 (탐지된 차량 위치로 접근)
 
 - 좌표계: map (전역 고정 좌표계)
-- 입력: 6층의 차량 map 좌표 (x, y), 1층의 로봇 자신 map 좌표 + base_link↔map TF(헤딩용)
-- 출력: nav goal (map 좌표 + heading) → 이동 제어(Nav2 등)로 전달
+- 입력: 6층의 차량 map 좌표 (x, y), 1층의 TF(base_link↔map) — translation 성분(로봇 자신 map 좌표, 목표 도달 판정 + 방향 계산용)
+- 출력: PoseStamped 메시지 (header.frame_id="map", position.x/y = 목표 map 좌표, position.z=0, orientation = 차량을 향하는 방향의 쿼터니언) → Nav2 NavigateToPose 액션 goal로 전달
 - 필요한 정보:
     - 6층에서 산출된 차량의 현재 map 좌표 (x, y) — 정지 차량이므로 속도벡터·ETA 예측 불필요, 목표 = 차량_현재위치
-    - 로봇 헤딩 유지용 map→base_link TF 회전값 (1층의 base_link↔map TF rotation 성분에서 유도)
+    - 목표 지점 도착 시 로봇이 차량을 정면으로 바라보도록 orientation 계산: yaw = atan2(차량_y - 로봇_y, 차량_x - 로봇_x) → 쿼터니언 변환. (로봇_x, 로봇_y)는 1층 TF(base_link↔map) translation에서 유도
     - 목표 재계산 주기와 기존 목표 취소/재전송 로직 (매 탐지마다 무조건 새 goal을 보낼지, 변화량 임계값을 둘지)
     - 목표 도달(접근 완료) 판정 기준: 로봇↔차량 거리가 임계값 이내면 정지
 
@@ -207,10 +200,10 @@ def correct_depth(raw_depth_m: float) -> float | None:
 |---|---|---|---|
 | 웹캠 픽셀 좌표계 | 2D, px, 원점 좌상단 | 웹캠 원본 이미지 기준. ROI 정의, 탐지 결과 표현, 사전 캘리브레이션된 픽셀↔map 매칭의 기준 좌표계 | W1층, W2층, W3층 |
 | 라이다 센서 프레임 | 2D, range scan | 라이다 원본 스캔 데이터 기준 프레임 | 1층 |
-| 픽셀 좌표계 | 2D, px, 원점 좌상단 | 오크디 RGB·depth 공용 픽셀 그리드. 원본은 해상도/화각이 서로 달라 4층에서 크롭+리사이즈(CROP_W/CROP_H) 정합 보정을 거친 뒤 동일 그리드로 취급 | 3층, 4층 |
-| camera_frame (카메라 광학 좌표계) | 3D, m, depth 메시지 header.frame_id 기준 | **오크디(AMR 카메라)** 기준 좌표계 — 웹캠 아님. 역투영으로 얻은 차량의 카메라 기준 3D 상대 위치 | 5층 |
+| 픽셀 좌표계 | 2D, px, 원점 좌상단 | 오크디 RGB·depth 공용 픽셀 그리드 | 2층(원본), 3층, 4층 |
+| camera_frame (카메라 광학 좌표계) | 3D, m, depth 메시지 header.frame_id 기준 | **오크디(AMR 카메라)** 기준 좌표계 — 웹캠 아님. 2층 depth 스트림의 frame_id로 이미 존재하며, 5층에서 역투영으로 차량의 3D 상대 위치를 계산하는 데 쓰임 | 2층(원본), 5층(계산) |
 | base_link | 3D, 로봇 본체 기준 좌표계 | TF 트리 중간 프레임 (camera_frame ↔ map 연결 고리) | 1층(TF 출력), 2층(TF 출력), 5층(TF lookup), 7층(헤딩) |
-| map | 2D, 전역 고정 좌표계 (map.yaml 기준) | 로컬라이제이션 결과, 웹캠이 전달하는 초기 위치, 차량 위치 이력, 로봇 목표 지점(nav goal) | W3층, W4층, 1층, 6층, 7층 |
+| map | 2D, 전역 고정 좌표계 (map.yaml 기준) | 로컬라이제이션 결과, 웹캠이 전달하는 초기 위치, 차량 위치 이력, 로봇 목표 지점(nav goal) | W3층, 1층, 5층(출력), 6층, 7층 |
 
 > 웹캠 픽셀 좌표계와 map은 W3층의 사전 캘리브레이션된 매칭 테이블로 연결된다(오크디처럼 깊이+내부파라미터를 이용한 역투영이 아님). camera_frame 이하 파이프라인(3~7층)은 전부 오크디(AMR 카메라) 기준이다.
 
@@ -223,15 +216,14 @@ def correct_depth(raw_depth_m: float) -> float | None:
 | 감지 영역(ROI) | 웹캠 픽셀 좌표 사각형 | W2층 입력 | 사전 정의, 진입 판정 기준 |
 | 탐지 중심 픽셀좌표 (cx, cy) [+bbox] (웹캠) | px | W2층 출력 | ROI 내부일 때만 유효 |
 | 픽셀↔map 매칭 테이블 | 픽셀좌표-map좌표 쌍 | W3층 입력 | 사전 캘리브레이션 |
-| 차량 초기 map 좌표 (계산값) | (x, y) | W3층 출력 | W4층 입력으로 전달 |
-| 차량 초기 map 좌표 (로봇 전송) | (x, y) | W4층 출력 | 터틀봇(AMR)에게 전달됨 |
+| 차량 초기 map 좌표 | (x, y) | W3층 출력 | 터틀봇(AMR)에게 전달됨 |
 | 라이다 스캔 스트림 | LaserScan 또는 PointCloud | 1층 입력 | 로컬라이제이션 입력 |
 | map.yaml | occupancy grid | 1층 입력 | 사전 구축된 정적 지도 |
 | 오도메트리 (odom) | 위치/속도 추정치 | 1층 입력 | 로컬라이제이션 보정용 |
 | TF: base_link ↔ map | 동적 변환 | 1층 출력 | AMCL 등 로컬라이제이션 노드가 라이다 스캔 + map.yaml로 산출 |
-| RGB 스트림 | image, 오크디 rgb preview/compressed | 2층 | 3층 탐지 입력 |
-| Depth 스트림 | 16bit, mm | 2층 | 4층 깊이 조회 입력 |
-| CameraInfo (K 행렬) | fx, fy, cx, cy | 2층 | 4층 역투영 입력 |
+| RGB 스트림 | image, 오크디 rgb/image_raw, 704×704 | 2층 | 3층 탐지 입력 |
+| Depth 스트림 | 16bit, mm | 2층 | `i_align_depth: true`로 RGB와 동일 그리드 정렬됨. 4층 깊이 조회 입력 |
+| CameraInfo (K 행렬) | fx, fy, cx, cy | 2층 | rgb/camera_info, 704×704 기준. 4층 역투영 입력 |
 | TF: camera_frame ↔ base_link | 정적 변환 | 2층 | 오크디 드라이버 / robot_state_publisher가 broadcast. 5층에서 1층의 base_link↔map과 체이닝 |
 | YOLO 가중치(AMR/오크디용) + 클래스 매핑 | 학습된 모델 파일 | 3층 입력 | |
 | 탐지 중심 픽셀좌표 (cx, cy) [+bbox] (오크디) | px, Point msg(헤더 없음) | 3층 출력 | |
@@ -239,4 +231,4 @@ def correct_depth(raw_depth_m: float) -> float | None:
 | camera_frame 기준 3D 상대좌표 | PointStamped (X, Y, Z) | 5층 출력 | |
 | 차량 map 좌표 시계열 버퍼 | (x, y) N개 슬라이딩 윈도우 | 6층 내부 | 노이즈 평균화용 |
 | 평균화된 차량 map 좌표 | (x, y) | 6층 출력 | |
-| nav goal | map (x, y, heading) | 7층 출력 | Nav2 등 이동 제어로 전달 |
+| nav goal | PoseStamped (map frame, position x/y, orientation quaternion) | 7층 출력 | Nav2 NavigateToPose 액션 goal로 전달 |
