@@ -17,7 +17,7 @@ setup(
     maintainer_email='hwangjeongui01@gmail.com',
     description='오크디 탐지 기반 뎁스보정/역투영/이동평균/goal계산으로 차량에 접근하는 노드',
     license='Apache-2.0',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
             'vehicle_approach_node = vehicle_approach.vehicle_approach_node:main',
