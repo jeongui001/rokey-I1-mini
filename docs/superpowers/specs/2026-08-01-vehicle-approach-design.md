@@ -8,13 +8,13 @@
 
 ### 1.1 목적
 
-지정된 웹캠 감지 영역(ROI)에 차량이 들어와 정지하면, 웹캠이 대략적인 위치를 계산해 로봇(터틀봇)에게 전달한다. 로봇은 이 정보를 참고해 대기 지점으로 이동한 뒤, 자체 오크디(OAK-D) 카메라로 차량을 직접 관측해 정밀한 위치를 계산하고 Nav2로 접근한다.
+지정된 웹캠 감지 영역(ROI)에 차량이 들어와 정지하면, 웹캠이 대략적인 위치를 계산해 로봇(터틀봇)에게 전달한다(이 값은 로깅용이며 이동 목표 계산에는 쓰이지 않는다 — §1.3 참고). 로봇은 맵 상 고정된 대기 지점으로 이동한 뒤, 자체 오크디(OAK-D) 카메라로 차량을 직접 관측해 정밀한 위치를 계산하고 Nav2로 접근한다.
 
 ### 1.2 범위
 
 - 대상은 **웹캠 시야에 들어온 뒤 정지하는 차량 1대**다.
 - 속도 추정, 이동 중인 차량에 대한 예측 요격, 충돌 회피는 범위 밖이다.
-- 실패/예외 상황(탐지 실패, TF 조회 실패 등)에 대한 처리와 테스트/검증 절차는 이번 스펙에서 다루지 않는다. 단, 뎁스 0.6m 미만 구간을 사용하지 않는 처리(§5.2.3)는 예외 상황이 아니라 정상 동작의 일부이므로 이번 스펙에 포함한다.
+- 실패/예외 상황(탐지 실패, TF 조회 실패 등)에 대한 처리와 테스트/검증 절차는 이번 스펙에서 다루지 않는다. 단, 뎁스 0.6m 미만 구간을 사용하지 않는 처리(§5.2.2)는 예외 상황이 아니라 정상 동작의 일부이므로 이번 스펙에 포함한다.
 
 ### 1.3 노트 대비 변경 사항
 
@@ -28,7 +28,7 @@
 ## 2. 전체 흐름
 
 1. 웹캠이 ROI를 상시 감시한다.
-2. 차량이 ROI에 들어와 정지하면, 웹캠이 픽셀→map 변환으로 위치를 계산해 로봇에게 1회 전달한다(로깅용).
+2. 차량이 ROI에 들어와 정지하면, 웹캠이 픽셀→map 변환으로 위치를 계산해 로봇에게 이벤트당 1회 전달한다(로깅용, §1.3).
 3. 로봇은 맵 상 고정된 대기 지점으로 이동한다.
 4. 대기 지점 도착 후, 로봇은 오크디 카메라로 차량 탐지를 시작한다.
 5. 오크디 탐지 결과로 정밀 위치를 반복 계산하며 Nav2로 접근한다.
@@ -41,7 +41,7 @@
 | 노드 | 담당 범위 | 역할 |
 |---|---|---|
 | `webcam_perception_node` | 노트 W1~W3층 | 웹캠 캡처(OpenCV), ROI 진입/정지 판정, YOLO 탐지, 호모그래피 변환으로 픽셀→map 좌표 계산 |
-| `vehicle_mission_node` | 상태 전이 | 대기 지점까지 1차 이동, 도착 후 정밀 접근 노드 활성화 |
+| `vehicle_mission_node` | 상태 전이 | `/webcam/vehicle_initial_pose` 구독(로깅용 보관), 대기 지점까지 1차 이동, 도착 후 정밀 접근 노드 활성화 |
 | `vehicle_approach_node` | 노트 3~7층 | 오크디 탐지 → 뎁스 보정 → 좌표 변환 → 이동평균 → nav goal 계산 및 전송 |
 
 다음은 커스텀으로 구현하지 않고 기존 스택을 그대로 사용한다.
@@ -49,14 +49,18 @@
 | 구성 요소 | 제공하는 것 | 사용처 |
 |---|---|---|
 | 라이다 + AMCL(로컬라이제이션 스택) | TF(base_link ↔ map) | `vehicle_approach_node`가 좌표 변환·헤딩 계산에 조회 |
-| 오크디 드라이버(depthai-ros) + robot_state_publisher | RGB/Depth/CameraInfo 스트림, TF(camera_frame ↔ base_link) | `vehicle_approach_node`의 탐지·좌표 변환 입력 |
+| 오크디 드라이버(depthai-ros) + robot_state_publisher | RGB/Depth/CameraInfo 스트림, TF(camera_frame ↔ base_link)* | `vehicle_approach_node`의 탐지·좌표 변환 입력 |
 | Nav2 | `NavigateToPose` 액션 서버 | `vehicle_mission_node`, `vehicle_approach_node`가 액션 클라이언트로 사용 |
+
+\* 카메라 내부 프레임 간 TF는 드라이버가 자동으로 발행하지만, 이를 로봇의 `base_link`에 연결하려면 오크디 xacro를 로봇 URDF에 통합하는 작업이 별도로 필요하다(1회성 설정, 드라이버만으로 자동 완성되지 않음).
 
 `vehicle_approach_node`가 좌표 변환에 쓰는 두 TF(base_link↔map, camera_frame↔base_link)는 tf2 버퍼/리스너에 항상 살아있어야 한다. 실제 변환은 두 TF를 수동으로 곱하는 것이 아니라, tf2의 `buffer.transform()`을 한 번 호출하면 내부적으로 자동 합성된다.
 
 ### 3.2 상태 전이
 
 `vehicle_mission_node`는 다음 상태만 가진다: **대기 지점 이동 중 → 정밀 접근 활성화됨**. 정밀 접근이 활성화된 이후 이 노드가 다시 할 일은 없다(정지 판정과 종료는 `vehicle_approach_node`가 자체적으로 수행). 재활성화나 실패 후 복귀 같은 시나리오는 예외 처리 범위이므로 다루지 않는다.
+
+`vehicle_approach_node`는 기동되어 있어도 `/vehicle_approach/enable`이 true가 되기 전까지는 오크디 탐지·좌표 계산 로직을 실행하지 않고 대기한다.
 
 ## 4. 인터페이스 명세
 
@@ -66,7 +70,7 @@
 | mission → Nav2 | 액션 `NavigateToPose` | `nav2_msgs/action/NavigateToPose` | 맵 상 사전 정의된 고정 대기 지점으로 이동 |
 | mission → approach | 토픽 `/vehicle_approach/enable` | `std_msgs/Bool` | QoS: `transient_local`. 대기 지점 도착(액션 결과 수신) 후 `true` 발행 |
 | approach 내부 (모니터링용) | 토픽 `/vehicle_approach/detection_center` | `geometry_msgs/Point` (헤더 없음, 노트의 기존 결정 유지) | 정지 차량 대상이라 타임스탬프 불필요. 실제 깊이 조회는 이 토픽이 아니라 RGB-Depth-CameraInfo 동기화 콜백 내부에서 이루어진다(§5.2.2). 이 값은 항상 최신 오크디 프레임 기준이라고 전제한다. |
-| approach → Nav2 | 액션 `NavigateToPose` (반복 호출) | `nav2_msgs/action/NavigateToPose` | 변화량 임계치(TBD) 이상 차이 나는 새 위치가 나오면 기존 goal을 취소하고 새 goal 전송 |
+| approach → Nav2 | 액션 `NavigateToPose` (반복 호출) | `nav2_msgs/action/NavigateToPose` | 변화량 임계치(TBD) 이상 차이 나는 새 위치가 나오면 새 goal 전송(서버가 이전 goal을 자동 preempt, 명시적 취소 불필요) |
 
 ## 5. 데이터 파이프라인
 
@@ -96,7 +100,7 @@
 
 #### 5.2.1 RGB-Depth 동기화 및 탐지 처리
 
-3층 YOLO 탐지는 RGB 콜백에서 실행되고, 4층의 깊이 조회는 `ApproximateTimeSynchronizer`(slop 0.15초)로 RGB·Depth·CameraInfo를 동기화한 콜백 안에서 함께 처리한다. `/vehicle_approach/detection_center` 토픽(§4)은 이 내부 처리 결과를 모니터링용으로 내보내는 부가 산출물일 뿐, 파이프라인의 실제 데이터 흐름은 콜백 내부 함수 호출로 이어진다.
+3층 YOLO 탐지는 오크디 온보드 VPU가 아니라 **호스트(로봇에 연결된 PC)에서 RGB 스트림에 대해 실행**한다. 이 전제 때문에 4~5층에서 카메라 내부파라미터(K 행렬)로 직접 역투영하는 수동 계산이 필요하다 — 만약 오크디 온보드의 SpatialDetectionNetwork를 쓴다면 탐지와 동시에 3D 위치가 나와 4~5층 알고리즘 자체가 달라진다. RGB 콜백에서 탐지를 실행하고, 4층의 깊이 조회는 `ApproximateTimeSynchronizer`(slop 0.15초)로 RGB·Depth·CameraInfo를 동기화한 콜백 안에서 함께 처리한다. `/vehicle_approach/detection_center` 토픽(§4)은 이 내부 처리 결과를 모니터링용으로 내보내는 부가 산출물일 뿐, 파이프라인의 실제 데이터 흐름은 콜백 내부 함수 호출로 이어진다.
 
 - **다중 탐지 시 선택 규칙**: 웹캠과 동일하게 confidence가 가장 높은 탐지를 사용한다.
 
@@ -110,6 +114,8 @@
 ```
 
 이 식은 6개 실측 샘플(0.6~1.7m)에 대한 최소제곱 회귀로 도출되었으며(검증 결과 잔차 대부분 ±0.03m 이내), 1.7m 이후 구간은 외삽이라 정확도가 보장되지 않는다. 정확도를 높이려면 0.6~2m 구간을 0.1m 간격으로 재측정해 회귀식을 다시 산출해야 한다. 원본 데이터와 검증표는 `docs/PROJECT_NOTES.md` §4-1을 참조.
+
+대기 지점에서 접근을 시작하는 최초 거리가 1.7m를 넘을 가능성이 있으므로, 이 구간의 처리 방침(재캘리브레이션 선행 여부, 혹은 초기 구간은 근사치로 감수할지)은 TBD로 남긴다(§7).
 
 ```python
 def correct_depth(raw_depth_m: float) -> float | None:
@@ -136,8 +142,8 @@ Z = z
 
 - 목표 좌표 = 6층에서 산출된 차량의 현재 map 좌표(정지 차량이므로 예측 불필요).
 - 목표 방향: `yaw = atan2(차량_y - 로봇_y, 차량_x - 로봇_x)` → 쿼터니언 변환. 로봇 자신의 map 좌표는 TF(base_link↔map)의 translation 성분에서 구한다.
-- **재전송 정책**: 새로 계산된 목표가 기존 goal과 변화량 임계치(TBD) 이상 차이 나면, 기존 goal을 취소하고 새 goal을 전송한다.
-- **접근 완료 판정**: 로봇-차량 거리가 임계치(TBD) 이내가 되면 Nav2 goal을 취소해 로봇을 정지시킨다.
+- **재전송 정책**: 새로 계산된 목표가 기존 goal과 변화량 임계치(TBD) 이상 차이 나면 새 goal을 전송한다. `NavigateToPose` 액션 서버는 새 goal이 들어오면 이전 goal을 자동으로 preempt하므로 명시적으로 취소를 호출할 필요는 없다(매 프레임 명시적 cancel 후 재전송은 Nav2에서 알려진 race condition을 유발할 수 있어 지양한다).
+- **접근 완료 판정**: 로봇-차량 거리가 임계치(TBD) 이내가 되면 Nav2 goal을 취소해 로봇을 정지시킨다. 이 임계치는 Nav2 컨트롤러의 `xy_goal_tolerance`보다 충분히 크게 잡아야 한다 — 그렇지 않으면 이 판정이 실행되기 전에 Nav2가 먼저 goal을 도달 처리해버리는 경합이 생길 수 있다.
 
 ## 6. 좌표계 정리
 
@@ -160,6 +166,7 @@ Z = z
 | goal 재전송 변화량 임계치 | §5.2.5 |
 | 접근 완료 판정 거리 임계치 | §5.2.5 |
 | 대기 지점의 구체 map 좌표값 | §3, §1.3 |
+| 뎁스 보정식의 1.7m 초과 구간 처리 방침(재캘리브레이션 여부) | §5.2.2 |
 
 이 값들은 실측 캘리브레이션을 거쳐 확정한다.
 
