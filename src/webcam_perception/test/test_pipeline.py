@@ -1,3 +1,5 @@
+import math
+
 from webcam_perception.detection import Detection
 from webcam_perception.homography import build_homography_matrix
 from webcam_perception.pipeline import VehicleStopPipeline
@@ -49,8 +51,8 @@ def test_stopped_publishes_once_then_suppresses_repeat():
 
     assert result is not None
     x, y = result
-    assert 0.0 <= x <= 1.0
-    assert 0.0 <= y <= 1.0
+    assert math.isclose(x, 0.5, abs_tol=1e-6)
+    assert math.isclose(y, 0.6, abs_tol=1e-6)
 
     # 계속 정지 상태 유지 중이면 재발행하지 않는다 (이벤트당 1회, 스펙 §2 step2)
     assert pipeline.process_detections([detection], now_sec=3.0) is None
