@@ -17,7 +17,7 @@ setup(
     maintainer_email='hwangjeongui01@gmail.com',
     description='웹캠 ROI 감시, 정지 판정, 픽셀→map 변환 후 차량 초기 위치 발행',
     license='Apache-2.0',
-    tests_require=['pytest'],
+    extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
             'webcam_perception_node = webcam_perception.webcam_perception_node:main',
