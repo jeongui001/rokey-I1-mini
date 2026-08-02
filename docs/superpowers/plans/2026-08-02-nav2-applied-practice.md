@@ -551,6 +551,8 @@ git commit -m "feat(nav2_applied_practice): add goal_calculation with pytest cov
 
 - [ ] **Step 1: `tf_lookup_node.py` 작성**
 
+> **주의(실행 검증으로 확인된 사항):** `point_base_link.header.stamp`를 `self.get_clock().now()`(정확한 "지금" 시각)로 채우면, TF 버퍼에 그 정확한 시각의 샘플이 아직 없어 `transform()`이 `ExtrapolationException`으로 거의 항상 실패한다(시뮬레이션 시간과 실제 시간이 안 맞는 경우는 물론, `use_sim_time:=true`로 시간 축을 맞춰도 TF가 이산적인 주기로만 발행되기 때문에 여전히 레이스가 남는다 — 직접 재현 확인됨). 위쪽의 `lookup_transform('map', 'base_link', Time())` 호출처럼 `Time()`(빈 타임스탬프 = "가장 최근 것 달라")를 그대로 쓴다.
+
 ```python
 import rclpy
 import tf2_geometry_msgs  # noqa: F401 -- PointStamped 변환 등록을 위해 필요
@@ -580,7 +582,7 @@ class TfLookupNode(Node):
 
         point_base_link = PointStamped()
         point_base_link.header.frame_id = 'base_link'
-        point_base_link.header.stamp = self.get_clock().now().to_msg()
+        point_base_link.header.stamp = Time().to_msg()
         point_base_link.point.x = 1.0
         point_base_link.point.y = 0.0
         point_base_link.point.z = 0.0
