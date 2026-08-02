@@ -387,7 +387,7 @@ ros2 launch nav2_fundamentals lesson01_bringup.launch.py
 ```bash
 source ~/nav2_study_ws/install/setup.bash
 ros2 run nav2_applied_practice navigate_to_pose_client_node --ros-args \
-  --params-file ~/nav2_study_ws/src/nav2_applied_practice/config/params.yaml
+  --params-file $(ros2 pkg prefix nav2_applied_practice)/share/nav2_applied_practice/config/params.yaml
 ```
 
 Expected: 로그에 goal 전송 메시지 출력, 로봇이 `(-1.5, 1.15)`로 이동, 도착 후 결과 상태 로그 출력.
@@ -524,7 +524,7 @@ colcon test --packages-select nav2_applied_practice
 colcon test-result --verbose
 ```
 
-Expected: `test_goal_calculation.py`의 6개 테스트 모두 PASS.
+Expected: `test_goal_calculation.py`의 8개 테스트(경계값 케이스 2개 포함) 모두 PASS.
 
 - [ ] **Step 5: 커밋**
 
@@ -619,6 +619,8 @@ def main(args=None):
 - `rokey-I1-mini/src/vehicle_approach/vehicle_approach/vehicle_approach_node.py`의 `_lookup_robot_position`: `tf_buffer.lookup_transform('map', base_frame, ...)`로 로봇의 map 좌표를 얻는 패턴.
 - `rokey-I1-mini/src/vehicle_approach/vehicle_approach/pipeline.py`의 `self.tf_buffer.transform(point_camera, 'map')`: 카메라 프레임의 점을 map 좌표로 변환하는 패턴. `tf2_geometry_msgs`를 import만 해두면(`# noqa: F401`) `PointStamped` 변환이 `Buffer.transform()`에 자동 등록된다 — 실제 프로젝트와 동일한 이유로 이 import가 필요하다.
 
+**한 가지 의도적인 차이:** 재현 대상(`pipeline.py:69`)은 변환할 점의 `header.stamp`를 그 점을 만든 원본 센서 메시지의 타임스탬프(`rgb_msg.header.stamp`)로 채운다 — 카메라 프레임이 실제로 캡처된 시각과 TF가 정확히 맞아떨어지기 때문이다. 이 데모에는 그런 원본 센서 메시지가 없으므로, 대신 `Time()`("가장 최근 것 달라") 센티널을 쓴다. 실제로 `self.get_clock().now()`(정확한 "지금")로 채워보면 TF 버퍼가 그 정확한 순간의 샘플을 아직 갖고 있지 않아 `transform()`이 거의 항상 실패한다 — 두 방식의 차이를 직접 비교해볼 수 있는 대목이다.
+
 ## 사전조건
 
 `nav2_fundamentals`의 lesson01 스택 실행 중 (TF 트리에 `map`→`odom`→`base_link`가 살아있어야 함):
@@ -645,6 +647,7 @@ ros2 run nav2_applied_practice tf_lookup_node
 
 - `lookup_transform`(변환 행렬 자체를 얻음)과 `transform`(특정 점을 다른 좌표계로 변환함)은 어떻게 다른가? `pipeline.py`는 왜 후자를 쓸까?
 - 실제 프로젝트에서는 `camera_frame`(오크디)→`base_link`, `base_link`→`map` 두 TF가 연결되어 있어야 `pipeline.py`의 한 줄짜리 `transform()` 호출로 카메라 좌표가 곧바로 map 좌표로 바뀐다. 왜 두 TF를 수동으로 곱하지 않고 `tf2`가 자동으로 합성하게 두는 게 나을까?
+- 실제 프로젝트는 왜 센서 메시지의 timestamp를 쓰고, 이 데모는 왜 `Time()`을 쓸 수밖에 없는가? `self.get_clock().now()`로 바꿔보면 왜 실패할까?
 ```
 
 - [ ] **Step 3: 실행 검증**
@@ -745,8 +748,11 @@ class GoalResendDemoNode(Node):
 
         completion_threshold = self.get_parameter('approach_completion_threshold_m').value
         if is_approach_complete(robot_x, robot_y, target[0], target[1], completion_threshold):
-            self._cancel_current_goal()
-            self.get_logger().info('목표 지점 도착으로 판단 — goal 취소')
+            self.get_logger().info('목표 지점 도착으로 판단')
+            if self._current_goal_handle is not None:
+                self._current_goal_handle.cancel_goal_async()
+                self._current_goal_handle = None
+                self.get_logger().info('goal 취소')
             return
 
         resend_threshold = self.get_parameter('goal_resend_threshold_m').value
@@ -783,11 +789,6 @@ class GoalResendDemoNode(Node):
             return
         self._current_goal_handle = goal_handle
 
-    def _cancel_current_goal(self) -> None:
-        if self._current_goal_handle is not None:
-            self._current_goal_handle.cancel_goal_async()
-            self._current_goal_handle = None
-
 
 def main(args=None):
     rclpy.init(args=args)
@@ -811,7 +812,9 @@ def main(args=None):
 - `rokey-I1-mini/src/vehicle_approach/vehicle_approach/vehicle_approach_node.py`의 `_send_goal`: `server_is_ready()`(논블로킹 체크)가 `False`면 실제 전송(`send_goal_async`)을 하지 않고 그냥 건너뛴다.
 - 같은 파일의 `_on_synchronized`: 접근 완료(`is_approach_complete`) 판정 시 진행 중이던 goal을 `cancel_goal_async()`로 취소한다.
 
-이 노드는 웹캠/오크디 탐지 대신 RViz의 **"Publish Point"** 툴로 지도 위를 클릭하면 나오는 `/clicked_point`를 "감지된 목표 위치"로 사용한다.
+이 노드는 웹캠/오크디 탐지 대신 RViz의 **"Publish Point"** 툴로 지도 위를 클릭하면 나오는 `/clicked_point`를 "감지된 목표 위치"로 사용한다. 01(액션 클라이언트)과 02(TF 조회/변환)를 먼저 읽었다고 가정한다 — 이 노드는 그 둘을 그대로 가져다 쓴다: TF 조회는 02의 `tf_lookup_node`와 동일하게 `Time()`(가장 최근 것) 센티널을 쓰고, goal 전송은 01의 `wait_for_server()` 대신 논블로킹 `server_is_ready()`를 쓴다는 점만 다르다.
+
+이 데모는 실제 코드와 두 군데 의도적으로 다르다: (1) `goal_resend_threshold_m` 기본값이 0.3m으로, 재현 대상(`vehicle_approach_node.py`)의 0.1m보다 크다 — 카메라가 아니라 사람이 마우스로 클릭하는 입력이라 그만큼 오차가 크기 때문이다. (2) `/clicked_point`의 `frame_id`나 좌표값 자체를 검증하지 않고 곧바로 map 좌표로 취급한다 — 실제로는 02에서 배운 `tf_buffer.transform()`으로 먼저 변환/검증해야겠지만, 이 데모는 재전송/취소 로직에 집중하기 위해 생략했다.
 
 ## 알려진 갭 (의도적으로 재현, 고치지 않음)
 
@@ -826,15 +829,24 @@ def main(args=None):
 ```bash
 source ~/nav2_study_ws/install/setup.bash
 ros2 run nav2_applied_practice goal_resend_demo_node --ros-args \
-  --params-file ~/nav2_study_ws/src/nav2_applied_practice/config/params.yaml
+  --params-file $(ros2 pkg prefix nav2_applied_practice)/share/nav2_applied_practice/config/params.yaml
 ```
 
 ## 관찰 포인트
 
 1. RViz 상단 툴바에서 "Publish Point" 툴(십자 모양 아이콘)을 고른 뒤 지도 위 빈 공간을 클릭한다. 터미널에 `goal 전송: x=..., y=...` 로그가 뜨고 로봇이 그 지점으로 이동을 시작하는 것을 확인한다.
 2. 로봇이 이동하는 도중, 방금 클릭한 지점에서 `goal_resend_threshold_m`(기본 0.3m)보다 가까운 다른 지점을 다시 클릭해본다 — `이전 목표와 충분히 가까움` 같은 재전송 스킵 로그 대신, 코드를 보면 알 수 있듯 `should_resend_goal`이 `False`를 반환해 아무 로그도 없이 조용히 무시되는 것을 확인한다(실제로는 재전송이 안 일어나는 게 정상 동작이다).
-3. 로봇이 클릭 지점 `approach_completion_threshold_m`(기본 0.5m) 이내로 접근하면 `목표 지점 도착으로 판단 — goal 취소` 로그가 뜨고 로봇이 멈추는 것을 확인한다.
-4. (갭 재현) Nav2 스택을 아직 안 띄운 상태에서 이 노드를 먼저 실행하고 지도 위를 클릭하면(테스트를 위해 `ros2 launch nav2_fundamentals lesson01_bringup.launch.py`를 잠깐 지연시켜 실행) `navigate_to_pose 서버가 아직 준비 안 됨 — goal 전송 스킵` 경고가 뜨는 것을 확인한다. 이후 Nav2가 완전히 뜬 뒤 같은 지점을 다시 클릭하지 않으면 이 goal은 영원히 전송되지 않는다 — 위에서 설명한 갭을 직접 재현한 것이다.
+3. 로봇이 클릭 지점 `approach_completion_threshold_m`(기본 0.5m) 이내로 접근하면 `목표 지점 도착으로 판단` 로그가 뜨고, 그 시점에 진행 중이던 goal이 있었다면 이어서 `goal 취소` 로그도 뜨며 로봇이 멈추는 것을 확인한다(재현 대상인 `vehicle_approach_node.py`도 "완료" 로그와 "취소" 로그를 이렇게 분리해 남긴다 — 취소할 goal이 애초에 없었다면 뒤의 로그는 안 뜨는 게 정상이다).
+4. (갭 재현) 이 노드는 클릭을 처리하기 전에 먼저 TF부터 조회하므로, "Nav2 스택을 통째로 안 띄운" 상태로는 TF 조회 자체가 실패해 `server_is_ready()`까지 도달하지 못한다. 갭을 직접 보려면 TF만 살아있고 액션 서버는 없는 상태를 인위적으로 만든다 — 별도 터미널에서 가짜 TF를 하나 띄우고:
+   ```bash
+   ros2 run tf2_ros static_transform_publisher 0 0 0 0 0 0 map base_link
+   ```
+   (이 상태에선 `nav2_fundamentals`도, RViz도 띄우지 않는다.) 그 다음 이 노드를 실행하고 지도 위 아무 좌표나 `/clicked_point`로 직접 publish한다:
+   ```bash
+   ros2 topic pub --once /clicked_point geometry_msgs/msg/PointStamped \
+     "{header: {frame_id: 'map'}, point: {x: 2.0, y: 0.0, z: 0.0}}"
+   ```
+   `navigate_to_pose 서버가 아직 준비 안 됨 — goal 전송 스킵` 경고가 뜨는 것을 확인한다. 이후 `nav2_fundamentals`를 띄워 Nav2가 완전히 활성화된 뒤에도, 같은 지점을 재전송 임계값보다 가깝게 다시 클릭하지 않으면 이 goal은 영원히 전송되지 않는다 — 위에서 설명한 갭을 직접 재현한 것이다.
 
 ## 이해 확인 질문
 
@@ -856,10 +868,10 @@ ros2 launch nav2_fundamentals lesson01_bringup.launch.py
 ```bash
 source ~/nav2_study_ws/install/setup.bash
 ros2 run nav2_applied_practice goal_resend_demo_node --ros-args \
-  --params-file ~/nav2_study_ws/src/nav2_applied_practice/config/params.yaml
+  --params-file $(ros2 pkg prefix nav2_applied_practice)/share/nav2_applied_practice/config/params.yaml
 ```
 
-Expected: RViz "Publish Point"로 클릭 시 goal 전송 로그, 로봇 이동, 근접 시 취소 로그 출력. `docs/03_goal_resend_and_cancel.md`의 4개 관찰 포인트를 모두 실제로 확인.
+Expected: RViz "Publish Point"로 클릭 시 goal 전송 로그, 로봇 이동, 근접 시 취소 로그 출력. `docs/03_goal_resend_and_cancel.md`의 관찰 포인트 1~3을 확인. 관찰 포인트 4(갭 재현)는 별도로 `static_transform_publisher` + 직접 `/clicked_point` publish 절차로 확인(문서에 명시된 대로) — Nav2 스택이 떠 있는 상태에서는 재현되지 않는 조건이므로 이 검증과는 별개로 확인한다.
 
 - [ ] **Step 4: 커밋**
 
