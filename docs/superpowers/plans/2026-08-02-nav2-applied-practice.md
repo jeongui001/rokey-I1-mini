@@ -450,12 +450,20 @@ def test_should_resend_goal_above_threshold_is_true():
     assert should_resend_goal((1.0, 1.0), (1.2, 1.0), threshold_m=0.1) is True
 
 
+def test_should_resend_goal_exactly_at_threshold_is_true():
+    assert should_resend_goal((1.1, 1.0), (1.0, 1.0), threshold_m=0.1) is True
+
+
 def test_is_approach_complete_within_threshold():
     assert is_approach_complete(0.0, 0.0, 0.3, 0.0, threshold_m=0.5) is True
 
 
 def test_is_approach_complete_outside_threshold():
     assert is_approach_complete(0.0, 0.0, 1.0, 0.0, threshold_m=0.5) is False
+
+
+def test_is_approach_complete_exactly_at_threshold_is_true():
+    assert is_approach_complete(0.0, 0.0, 0.5, 0.0, threshold_m=0.5) is True
 ```
 
 - [ ] **Step 2: 테스트 실패 확인**
@@ -887,7 +895,7 @@ colcon test --packages-select nav2_applied_practice
 colcon test-result --verbose
 ```
 
-Expected: `test_pose_utils.py`(4개) + `test_goal_calculation.py`(6개) = 10개 테스트 전부 PASS, 실패 0건.
+Expected: `test_pose_utils.py`(4개) + `test_goal_calculation.py`(8개) = 12개 테스트 전부 PASS, 실패 0건.
 
 - [ ] **Step 3: 커밋 (변경 사항이 있는 경우에만)**
 
