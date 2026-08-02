@@ -190,6 +190,8 @@ git commit -m "chore: scaffold nav2_fundamentals ament_python package"
 
 TurtleBot3 Gazebo World + `turtlebot3_navigation2`의 표준 nav2 bringup(내부적으로 번들 맵 `turtlebot3_navigation2/map/map.yaml`과 RViz를 포함)을 하나로 묶는다.
 
+> **주의(실행 검증으로 확인된 사항):** `navigation2.launch.py`는 `map`/`params_file`을 `LaunchConfiguration('map', default=...)` 자기참조 패턴으로 선언한다. 이 패턴은 최상위(top-level)로 직접 실행할 때는 문제없지만, 지금처럼 다른 launch 파일에서 `IncludeLaunchDescription`으로 포함하면서 `map`/`params_file`을 명시적으로 넘기지 않으면 `[Errno 2] No such file or directory: ''`로 실패한다(직접 재현 확인됨). 따라서 아래 코드는 `map`/`params_file` 경로를 직접 계산해 명시적으로 넘긴다 — `use_sim_time`만 넘기는 버전은 쓰지 않는다.
+
 ```python
 import os
 
@@ -208,12 +210,23 @@ def generate_launch_description():
     tb3_nav2_launch = os.path.join(
         get_package_share_directory('turtlebot3_navigation2'), 'launch', 'navigation2.launch.py')
 
+    map_dir = os.path.join(
+        get_package_share_directory('turtlebot3_navigation2'), 'map', 'map.yaml')
+    turtlebot3_model = os.environ['TURTLEBOT3_MODEL']
+    params_file = os.path.join(
+        get_package_share_directory('turtlebot3_navigation2'), 'param',
+        os.environ.get('ROS_DISTRO', 'humble'), f'{turtlebot3_model}.yaml')
+
     return LaunchDescription([
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(tb3_gazebo_launch)),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(tb3_nav2_launch),
-            launch_arguments={'use_sim_time': use_sim_time}.items()),
+            launch_arguments={
+                'use_sim_time': use_sim_time,
+                'map': map_dir,
+                'params_file': params_file,
+            }.items()),
     ])
 ```
 
