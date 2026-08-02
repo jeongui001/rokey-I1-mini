@@ -612,7 +612,7 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
@@ -631,9 +631,11 @@ def generate_launch_description():
     rviz_config = os.path.join(
         get_package_share_directory('nav2_bringup'), 'rviz', 'nav2_default_view.rviz')
 
-    params_file = PythonExpression([
-        "'", config_dir, "/costmap_' + '", costmap_profile, "' + '_inflation.yaml'"
-    ])
+    # PythonExpression은 eval()로 평가되어 costmap_profile 값을 통한 코드 실행 위험이
+    # 있다 — 대신 launch가 문자열 이어붙이기로만 처리하는 substitution 리스트를 쓴다.
+    params_file = [
+        os.path.join(config_dir, 'costmap_'), costmap_profile, '_inflation.yaml',
+    ]
 
     return LaunchDescription([
         DeclareLaunchArgument(
