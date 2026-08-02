@@ -60,9 +60,11 @@ touch ~/nav2_study_ws/src/nav2_fundamentals/nav2_fundamentals/__init__.py
 
   <exec_depend>turtlebot3_gazebo</exec_depend>
   <exec_depend>turtlebot3_navigation2</exec_depend>
+  <exec_depend>turtlebot3_teleop</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>nav2_simple_commander</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
 
@@ -146,7 +148,7 @@ TurtleBot3 + Gazebo 시뮬레이션으로 Nav2를 순서대로 익히는 6개 �
 | 05 | `ros2 launch nav2_fundamentals lesson05_planner_controller.launch.py` | 플래너 vs 컨트롤러 |
 | 06 | `ros2 launch nav2_fundamentals lesson06_bt_waypoint.launch.py` | 행동 트리 + Waypoint Follower |
 
-각 레슨의 상세 설명은 `docs/lessonNN.md`를 참고. (아래 태스크에서 채워짐)
+각 레슨의 상세 설명은 `docs/lessonNN.md`를 참고.
 ```
 
 - [ ] **Step 6: 워크스페이스 빌드로 스캐폴딩 검증**
@@ -212,7 +214,7 @@ def generate_launch_description():
 
     map_dir = os.path.join(
         get_package_share_directory('turtlebot3_navigation2'), 'map', 'map.yaml')
-    turtlebot3_model = os.environ['TURTLEBOT3_MODEL']
+    turtlebot3_model = os.environ.get('TURTLEBOT3_MODEL', 'waffle')
     params_file = os.path.join(
         get_package_share_directory('turtlebot3_navigation2'), 'param',
         os.environ.get('ROS_DISTRO', 'humble'), f'{turtlebot3_model}.yaml')
@@ -242,7 +244,7 @@ Nav2 스택 전체(로컬라이제이션 + 코스트맵 + 플래너 + 컨트롤�
 ## 사전조건
 
 - `echo $TURTLEBOT3_MODEL` → `waffle` 확인
-- Task 1의 `colcon build`가 성공한 상태
+- `colcon build --symlink-install`이 성공한 상태 (`docs/README.md`의 사전 준비 참고)
 
 ## 실행 명령
 
@@ -257,7 +259,7 @@ Gazebo와 RViz2 창이 함께 뜬다. RViz에는 이미 번들된 맵(`turtlebot
 
 1. Gazebo에서 로봇의 스폰 위치는 `(x=-2.0, y=-0.5)`다. RViz 상단 툴바의 **2D Pose Estimate**로 지도 위 같은 위치를 클릭하고 로봇이 바라보는 방향으로 드래그해 초기 위치를 맞춰준다.
 2. 파티클(작은 화살표 무리)이 로봇 주변에 모여드는 것을 확인한다 — AMCL이 초기 위치를 좁혀가는 과정(Lesson 03에서 자세히 다룸).
-3. RViz 상단 툴바의 **2D Goal Pose**로 지도 위 다른 지점을 클릭한다 — 초록색 경로(전역 경로, Lesson 05)가 그려지고 로봇이 그 경로를 따라 이동하는 것(로컬 추종, Lesson 05)을 확인한다.
+3. RViz 상단 툴바의 **2D Goal Pose**로 지도 위 다른 지점을 클릭한다 — 빨간색 경로(전역 경로, Lesson 05)가 그려지고 로봇이 그 경로를 따라 이동하는 것(로컬 추종, Lesson 05)을 확인한다.
 4. 로봇이 장애물 근처를 지날 때 완전히 붙어가지 않고 일정 거리를 두는 것을 확인한다 — 코스트맵의 인플레이션(Lesson 04에서 자세히 다룸).
 
 ## 이해 확인 질문
@@ -347,7 +349,7 @@ def generate_launch_description():
 
 ## 사전조건
 
-- Task 1의 `colcon build` 완료
+- `colcon build --symlink-install` 완료
 
 ## 실행 명령
 
@@ -453,7 +455,7 @@ def generate_launch_description():
             description='AMCL이 사용할 맵 yaml 경로 (lesson02에서 만든 맵으로도 시도해볼 수 있음)'),
         DeclareLaunchArgument(
             'params_file', default_value=default_params,
-            description='ROS2 parameters file'),
+            description='AMCL/map_server가 사용할 파라미터 yaml 경로'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(tb3_gazebo_launch)),
         IncludeLaunchDescription(
@@ -484,7 +486,7 @@ def generate_launch_description():
 
 ## 사전조건
 
-- Task 1의 `colcon build` 완료
+- `colcon build --symlink-install` 완료
 - (선택) Lesson 02에서 만든 `~/nav2_study_ws/maps/my_map.yaml`
 
 ## 실행 명령
@@ -640,7 +642,8 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'costmap_profile', default_value='small',
-            description="'small' 또는 'large' — config/costmap_<profile>_inflation.yaml 사용"),
+            choices=['small', 'large'],
+            description="config/costmap_<profile>_inflation.yaml 사용"),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(tb3_gazebo_launch)),
         IncludeLaunchDescription(
@@ -681,7 +684,7 @@ Expected: `costmap_small_inflation.yaml`, `costmap_large_inflation.yaml` 둘 다
 
 ## 사전조건
 
-- Task 1의 `colcon build` 완료, Lesson 03까지의 개념(로컬라이제이션) 이해
+- `colcon build --symlink-install` 완료, Lesson 03까지의 개념(로컬라이제이션) 이해
 
 ## 실행 명령
 
@@ -702,7 +705,7 @@ ros2 launch nav2_fundamentals lesson04_costmap.launch.py costmap_profile:=large
 
 1. RViz의 **Global Costmap**/**Local Costmap** 디스플레이(파란~보라색 그라데이션)를 켠 상태에서, 장애물 주변에 색이 번져 있는 폭을 두 설정에서 비교한다. `small`은 장애물 벽에 거의 붙어서만 색이 있고, `large`는 넓은 영역까지 색이 번져 있다.
 2. 2D Pose Estimate로 초기 위치를 잡고, 장애물 근처를 지나가는 2D Goal Pose를 보내본다. `large` 설정에서는 로봇이 장애물에서 훨씬 멀리 돌아가거나, 통로가 좁은 곳에서는 아예 경로를 못 찾을 수도 있다.
-3. `small` 설정에서는 로봇이 장애물에 상대적으로 가깝게 붙어 지나가는 것을 확인한다.
+3. `small` 설정에서는 로봇이 장애물에 상대적으로 가깝게 붙어 지나가는 것을 확인한다. `small`의 `inflation_radius`(0.15m)는 로봇의 `robot_radius`(0.22m)보다도 작다 — 즉 인플레이션 비용 영역이 로봇 몸체보다 좁아서, 사실상 "충돌 직전에야 비용이 잡히는" 셋팅이다. 로봇이 장애물에 몸체 일부를 걸치듯 스쳐 지나가는 것처럼 보인다면 이 때문이다.
 
 ## 이해 확인 질문
 
@@ -744,7 +747,7 @@ git commit -m "feat(nav2_fundamentals): add lesson04 costmap comparison launch, 
 - Consumes: Task 2의 `launch/lesson01_bringup.launch.py` (그대로 include해서 재사용)
 - Produces: 없음
 
-플래너(전역 경로 계획)와 컨트롤러(로컬 추종)의 차이는 새로운 노드 구성이 필요한 게 아니라, Lesson 01과 동일한 nav2 스택에서 RViz의 서로 다른 디스플레이(`Path`=전역 경로, `Local Plan`/`Trajectories`=로컬 추종 후보)를 비교 관찰하는 것으로 확인한다. 이 두 디스플레이는 `nav2_default_view.rviz`(Lesson 01이 쓰는 설정)에 이미 포함되어 있다.
+플래너(전역 경로 계획)와 컨트롤러(로컬 추종)의 차이는 새로운 노드 구성이 필요한 게 아니라, Lesson 01과 동일한 nav2 스택에서 RViz의 서로 다른 디스플레이(`Path`=전역 경로, `Local Plan`/`Trajectories`=로컬 추종 후보)를 비교 관찰하는 것으로 확인한다. Lesson 01이 쓰는 `tb3_navigation2.rviz`에는 이 디스플레이들이 이미 포함되어 있다(단, `Trajectories`는 기본값이 꺼져 있어 Displays 패널에서 직접 켜야 한다).
 
 - [ ] **Step 1: `lesson05_planner_controller.launch.py` 작성 (lesson01 재사용)**
 
@@ -792,8 +795,8 @@ ros2 launch nav2_fundamentals lesson05_planner_controller.launch.py
 ## 관찰 포인트
 
 1. 2D Pose Estimate로 초기 위치를 잡은 뒤, 멀리 떨어진 2D Goal Pose를 보낸다.
-2. RViz의 **Path** 디스플레이(초록색 선) — 이것이 플래너가 한 번에 계산한 전역 경로다. 목표를 보내는 순간 한 번에 쫙 그려지는 것을 확인한다.
-3. RViz의 **Local Plan** 디스플레이(다른 색 짧은 선)와 **Trajectories** 디스플레이 — 이것이 컨트롤러가 매 제어 주기(수십 ms)마다 다시 계산하는 짧은 로컬 추종 경로/후보 궤적들이다. 로봇이 이동하는 동안 이 선이 계속 갱신되는 것을 확인한다.
+2. RViz의 **Path** 디스플레이(빨간색 선) — 이것이 플래너가 한 번에 계산한 전역 경로다. 목표를 보내는 순간 한 번에 쫙 그려지는 것을 확인한다.
+3. RViz의 **Local Plan** 디스플레이(파란색 짧은 선)와 **Trajectories** 디스플레이 — 이것이 컨트롤러가 매 제어 주기(수십 ms)마다 다시 계산하는 짧은 로컬 추종 경로/후보 궤적들이다. `Trajectories`는 기본적으로 꺼져 있으니 왼쪽 Displays 패널에서 체크박스를 켠다. 로봇이 이동하는 동안 이 선이 계속 갱신되는 것을 확인한다.
 4. 로봇 이동 경로에 (Gazebo에서) 예상치 못한 장애물이 끼어들었다고 가정하면, 전역 경로(Path)는 크게 안 바뀌어도 로컬 추종(Local Plan)은 매 순간 그 장애물을 피하려고 계속 재계산된다 — 텔레옵으로 다른 터틀봇을 근처에 스폰하거나, 단순히 로봇 진행 경로 앞쪽 코스트맵의 Local Plan이 전역 Path에서 살짝 벗어나 장애물을 피해가는 구간이 있는지 관찰하는 것으로도 충분하다.
 
 ## 이해 확인 질문
@@ -924,14 +927,14 @@ Nav2가 "goal 하나로 이동"이라는 동작을 내부적으로 행동 트리
 
 ## 사전조건
 
-- Task 1의 `colcon build` 완료
+- Lesson 01 완료 (동일한 launch 파일을 재사용함)
 
 ## 1. 기본 행동 트리 들여다보기
 
-Nav2가 기본으로 쓰는 BT 파일을 열어본다:
+Nav2(Humble)의 `bt_navigator`는 기본적으로 `default_nav_to_pose_bt_xml` 파라미터가 가리키는 파일을 실행하는데, 이 워크스페이스가 쓰는 `waffle.yaml`에는 그 키가 설정되어 있지 않다(있는 건 더 예전 배포판용 키인 `default_bt_xml_filename`뿐이라 Humble에서는 무시된다). 그래서 실제로 실행되는 건 `bt_navigator`에 컴파일된 기본값인 아래 파일이다:
 
 ```bash
-cat /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_w_replanning_distance.xml
+cat /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
 ```
 
 내용은 대략 이렇게 생겼다:
@@ -939,17 +942,37 @@ cat /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_w_replanning
 ```xml
 <root main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <PipelineSequence name="NavigateWithReplanning">
-      <DistanceController distance="1.0">
-        <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
-      </DistanceController>
-      <FollowPath path="{path}"  controller_id="FollowPath"/>
-    </PipelineSequence>
+    <RecoveryNode number_of_retries="6" name="NavigateRecovery">
+      <PipelineSequence name="NavigateWithReplanning">
+        <RateController hz="1.0">
+          <RecoveryNode number_of_retries="1" name="ComputePathToPose">
+            <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Context" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </RecoveryNode>
+        </RateController>
+        <RecoveryNode number_of_retries="1" name="FollowPath">
+          <FollowPath path="{path}" controller_id="FollowPath"/>
+          <ClearEntireCostmap name="ClearLocalCostmap-Context" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+      </PipelineSequence>
+      <ReactiveFallback name="RecoveryFallback">
+        <GoalUpdated/>
+        <RoundRobin name="RecoveryActions">
+          <Sequence name="ClearingActions">
+            <ClearEntireCostmap name="ClearLocalCostmap-Subtree" service_name="local_costmap/clear_entirely_local_costmap"/>
+            <ClearEntireCostmap name="ClearGlobalCostmap-Subtree" service_name="global_costmap/clear_entirely_global_costmap"/>
+          </Sequence>
+          <Spin spin_dist="1.57"/>
+          <Wait wait_duration="5"/>
+          <BackUp backup_dist="0.30" backup_speed="0.05"/>
+        </RoundRobin>
+      </ReactiveFallback>
+    </RecoveryNode>
   </BehaviorTree>
 </root>
 ```
 
-읽는 법: `PipelineSequence`는 자식들을 항상 순서대로, 매 tick마다 다시 확인하며 실행하는 노드다. `DistanceController`는 로봇이 1m 이동할 때마다 안의 `ComputePathToPose`(플래너 호출, Lesson 05)를 다시 실행해 전역 경로를 갱신한다. `FollowPath`는 그 경로를 컨트롤러(Lesson 05)에게 넘겨 실제로 따라가게 한다. 즉, "이동하면서 주기적으로 경로를 재계산한다"는 정책 자체가 BT로 표현되어 있다.
+읽는 법: 바깥쪽 `RecoveryNode`는 안쪽이 실패하면 `RecoveryFallback`(하단)을 실행하고, 그래도 안 되면 전체를 최대 6번까지 재시도한다. 안쪽 `PipelineSequence`는 `RateController`로 1Hz마다 `ComputePathToPose`(플래너 호출, Lesson 05)를 다시 실행해 전역 경로를 갱신하고, 그 경로를 `FollowPath`(컨트롤러 호출, Lesson 05)에게 넘겨 실제로 따라가게 한다. 둘 중 하나라도 실패하면 각자의 코스트맵을 지우고 재시도하고, 그래도 실패하면 `RecoveryFallback`이 제자리 회전(`Spin`) → 대기(`Wait`) → 후진(`BackUp`)을 차례로 시도한다 — 로봇이 막혔을 때 빙글 돌거나 잠깐 멈췄다가 뒤로 빠지는 동작을 봤다면 바로 이 부분이다. 즉, "경로 재계산 주기"뿐 아니라 "막혔을 때 무엇을 시도할지"까지 정책 전체가 BT로 표현되어 있다.
 
 ## 2. Waypoint Follower 실행
 
@@ -973,7 +996,7 @@ ros2 run nav2_fundamentals waypoint_demo
 
 ## 이해 확인 질문
 
-- 이번 레슨에서 실행한 `navigate_w_replanning_distance.xml`은 "1m마다 경로 재계산"이라는 정책을 담고 있었다. 만약 이 정책을 "장애물이 새로 나타났을 때만 재계산"으로 바꾸고 싶다면, 코드를 고치는 것과 이 BT XML을 고치는 것 중 어느 쪽이 더 간단할까? 왜 Nav2가 이런 방식(BT)을 택했을지 생각해보자.
+- 이번 레슨에서 실행한 `navigate_to_pose_w_replanning_and_recovery.xml`은 "1Hz마다 경로 재계산"과 "막혔을 때의 복구 순서(회전→대기→후진)"라는 두 정책을 담고 있었다. 복구 순서를 "후진을 가장 먼저 시도"하도록 바꾸고 싶다면, `bt_navigator`의 C++/Python 코드를 고치는 것과 이 BT XML의 `RoundRobin` 안 순서를 바꾸는 것 중 어느 쪽이 더 간단할까? 왜 Nav2가 이런 방식(BT)을 택했을지 생각해보자.
 - `followWaypoints`는 내부적으로 각 waypoint마다 Lesson 01~05에서 본 전체 스택(로컬라이제이션→코스트맵→플래너→컨트롤러)을 반복 호출한다. 이 6개 레슨이 어떻게 하나로 이어지는지 스스로 설명해보자.
 ```
 
@@ -1025,11 +1048,15 @@ git commit -m "feat(nav2_fundamentals): add lesson06 BT/waypoint follower demo, 
 
 레슨은 01→06 순서대로 진행하는 것을 전제로 한다. 특히 02(SLAM)에서 만든 맵은 03(AMCL)에서 선택적으로 재사용할 수 있고, 05·06은 01의 launch 파일을 그대로 재사용한다 — 별도 노드 구성이 아니라 같은 스택을 다른 각도(코스트맵 파라미터, BT/waypoint)로 관찰하는 것이 목적이기 때문이다.
 
+레슨마다 RViz 설정 파일이 다르다 — 01·05·06은 `tb3_navigation2.rviz`, 03·04는 `nav2_default_view.rviz`를 쓴다. 둘 다 이 커리큘럼에 필요한 디스플레이를 포함하지만 화면 배치가 다르니, 레슨을 옮겨갈 때 패널이 바뀌어도 정상이다.
+
 ## 문제가 생기면
 
 - Gazebo 창이 회색으로 멈춰 있으면 GPU 렌더링 문제일 수 있다 — `glxinfo -B | grep "direct rendering"`으로 `Yes`인지 확인.
 - `ros2 launch`가 패키지를 못 찾으면 `source ~/nav2_study_ws/install/setup.bash`를 안 했을 가능성이 크다.
 ```
+
+이때 README 상단에 이미 있던 "각 레슨의 상세 설명은 `docs/lessonNN.md`를 참고." 줄에 스캐폴딩 단계의 placeholder 문구가 남아있다면(예: "(아래 태스크에서 채워짐)") — 지금은 레슨 01~06 문서가 모두 존재하므로 그 문구는 삭제한다.
 
 - [ ] **Step 2: 전체 워크스페이스 빌드로 최종 확인**
 
