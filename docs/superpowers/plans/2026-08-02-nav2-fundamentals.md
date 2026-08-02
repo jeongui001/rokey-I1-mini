@@ -417,6 +417,8 @@ git commit -m "feat(nav2_fundamentals): add lesson02 SLAM launch and doc"
 
 - [ ] **Step 1: `lesson03_amcl.launch.py` 작성**
 
+> **주의(실행 검증으로 확인된 사항):** Task 2와 같은 이유로, `localization_launch.py`에 `params_file`을 명시적으로 넘기지 않으면 `[Errno 2] No such file or directory: ''`로 실패한다(직접 재현 확인됨). 아래 코드는 `params_file`도 명시적으로 선언해 넘긴다(기본값은 `nav2_bringup`의 `params/nav2_params.yaml` — `localization_launch.py`가 쓰는 노드(map_server/amcl)에 한해 `turtlebot3_navigation2`의 waffle 전용 yaml과 내용이 동일해 무방함).
+
 ```python
 import os
 
@@ -431,9 +433,12 @@ from launch_ros.actions import Node
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
     map_yaml = LaunchConfiguration('map')
+    params_file = LaunchConfiguration('params_file')
 
     default_map = os.path.join(
         get_package_share_directory('turtlebot3_navigation2'), 'map', 'map.yaml')
+    default_params = os.path.join(
+        get_package_share_directory('nav2_bringup'), 'params', 'nav2_params.yaml')
 
     tb3_gazebo_launch = os.path.join(
         get_package_share_directory('turtlebot3_gazebo'), 'launch', 'turtlebot3_world.launch.py')
@@ -446,6 +451,9 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'map', default_value=default_map,
             description='AMCL이 사용할 맵 yaml 경로 (lesson02에서 만든 맵으로도 시도해볼 수 있음)'),
+        DeclareLaunchArgument(
+            'params_file', default_value=default_params,
+            description='ROS2 parameters file'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(tb3_gazebo_launch)),
         IncludeLaunchDescription(
@@ -453,6 +461,7 @@ def generate_launch_description():
             launch_arguments={
                 'map': map_yaml,
                 'use_sim_time': use_sim_time,
+                'params_file': params_file,
             }.items()),
         Node(
             package='rviz2',
