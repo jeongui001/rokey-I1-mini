@@ -1,7 +1,7 @@
 # Run with: ros2 run webcam_perception webcam_perception_node --ros-args --params-file src/webcam_perception/config/params.yaml
 webcam_perception_node:
   ros__parameters:
-    camera_index: 0
+    camera_index: 2
     yolo_weights_path: "~/b3_int1_mini/best.pt"
     vehicle_class_id: 0
     capture_period_s: 0.1
