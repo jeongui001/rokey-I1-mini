@@ -11,7 +11,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import Bool
-from tf2_ros import Buffer, TransformListener
+from tf2_ros import Buffer, TransformException, TransformListener
 
 from vehicle_approach.detection import Detection
 from vehicle_approach.moving_average import MovingAverageFilter
@@ -96,19 +96,24 @@ class VehicleApproachNode(Node):
     def _on_synchronized(self, rgb_msg: Image, depth_msg: Image, info_msg: CameraInfo) -> None:
         # 오케스트레이션만 담당한다 -- 뎁스보정/역투영+TF/이동평균/goal계산은
         # VehicleApproachPipeline과 그 내부 함수들이 각각 수행한다 (스펙 §5.2.1)
+        print(f'[DEBUG] _on_synchronized called, enabled={self._enabled}')
         if not self._enabled:
             return
 
         detections = self._run_detector(rgb_msg)
         depth_image = self._bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
         fx, fy, cx, cy = info_msg.k[0], info_msg.k[4], info_msg.k[2], info_msg.k[5]
-        robot_x, robot_y = self._lookup_robot_position()
 
-        result = self._pipeline.process_frame(
-            detections, depth_image, fx, fy, cx, cy,
-            stamp=rgb_msg.header.stamp,
-            robot_x=robot_x, robot_y=robot_y,
-        )
+        try:
+            robot_x, robot_y = self._lookup_robot_position()
+            result = self._pipeline.process_frame(
+                detections, depth_image, fx, fy, cx, cy,
+                stamp=rgb_msg.header.stamp,
+                robot_x=robot_x, robot_y=robot_y,
+            )
+        except TransformException as ex:
+            self.get_logger().warn(f'tf lookup failed, skipping frame: {ex}')
+            return
 
         if result.detection_center is not None:
             self._detection_center_publisher.publish(result.detection_center)

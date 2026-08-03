@@ -54,12 +54,14 @@ class VehicleApproachPipeline:
         robot_y: float,
     ) -> ApproachResult:
         best = select_best_detection(detections, self.confidence_threshold)
+        print(f'[DEBUG] detections={len(detections)} best={"none" if best is None else f"{best.confidence:.2f}"}')
         if best is None:
             return ApproachResult(goal_pose=None, detection_center=None, completed=False)
 
         u, v = bbox_center(best.x1, best.y1, best.x2, best.y2)
         raw_depth_m = float(depth_image[int(round(v)), int(round(u))]) / 1000.0
         corrected = correct_depth(raw_depth_m)
+        print(f'[DEBUG] raw_depth_m={raw_depth_m:.3f} corrected={corrected}')
         if corrected is None:
             return ApproachResult(goal_pose=None, detection_center=None, completed=False)
 

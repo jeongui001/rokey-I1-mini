@@ -1,5 +1,5 @@
 # vehicle_approach
-
+3
 `/vehicle_approach/enable`이 true가 되면 오크디(AMR 카메라)로 차량을 탐지해 뎁스 보정 →
 역투영+TF 변환 → 이동평균 → goal 계산을 거쳐 Nav2로 반복 접근하다가, 임계 거리 이내에서 정지하는
 패키지. `docs/PROJECT_NOTES.md`의 **§3 nav 파이프라인 2~7층**에 해당한다.

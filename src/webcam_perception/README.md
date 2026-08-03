@@ -1,5 +1,5 @@
 # webcam_perception
-
+2
 웹캠으로 지정 ROI를 상시 감시하다가 차량이 들어와 정지하면, 픽셀 좌표를 map 좌표로 변환해
 `/webcam/vehicle_initial_pose`로 1회 발행하는 패키지. `docs/PROJECT_NOTES.md`의 **§2 웹캠
 파이프라인 (W1~W3층)** 에 해당한다.

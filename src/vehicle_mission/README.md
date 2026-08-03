@@ -1,5 +1,5 @@
 # vehicle_mission
-
+1
 로봇을 map 상 고정된 대기 지점으로 이동시키고, 도착하면 `/vehicle_approach/enable`을 발행해
 `vehicle_approach_node`를 활성화하는 패키지. `docs/PROJECT_NOTES.md` §1 정상 플로우의
 "로봇이 대기 지점으로 이동" 단계를 담당하며, 노트에는 별도 레이어 번호가 없어 코드 의존관계

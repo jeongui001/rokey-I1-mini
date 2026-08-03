@@ -14,7 +14,7 @@ vehicle_approach_node:
     camera_info_topic: "/robot11/oakd/rgb/camera_info"
 
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
-    confidence_threshold: 0.5             # TBD: YOLO confidence threshold (웹캠과 공용 정책)
+    confidence_threshold: 0.9             # TBD: YOLO confidence threshold (웹캠과 공용 정책)
     moving_average_window: 3              # TBD: 이동평균 슬라이딩 윈도우 크기 N
     goal_resend_threshold_m: 0.3          # TBD: goal 재전송 변화량 임계치(m)
     approach_completion_threshold_m: 0.7  # TBD: 접근 완료 판정 거리 임계치(m) — Nav2 xy_goal_tolerance보다 충분히 커야 함(스펙 §5.2.5)
