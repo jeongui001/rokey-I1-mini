@@ -3,8 +3,8 @@ homography_pixel_points / homography_map_points 를 계산하고
 params.yaml에 반영하는 캘리브레이션 도구.
 
 사용법:
-    python3 -m webcam_perception.homography_calibration_tool \
-        --map-yaml /path/to/map.yaml --camera-index 0
+python3 -m webcam_perception.homography_calibration_tool \
+--map-yaml /path/to/map.yaml --camera-index 0
 
 조작:
     - 웹캠 미리보기 창에서 SPACE: 현재 프레임 고정

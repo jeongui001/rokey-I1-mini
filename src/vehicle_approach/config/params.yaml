@@ -1,7 +1,7 @@
 # Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml
 vehicle_approach_node:
   ros__parameters:
-    yolo_weights_path: "~/b3_int1_mini/yolo_webcam.pt"
+    yolo_weights_path: "~/b3_int1_mini/best.pt"
     vehicle_class_id: 0
     camera_frame: "oakd_rgb_camera_optical_frame"
     base_frame: "base_link"

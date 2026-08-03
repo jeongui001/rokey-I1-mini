@@ -12,6 +12,10 @@
   <depend>std_msgs</depend>
   <depend>nav2_msgs</depend>
   <depend>action_msgs</depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>webcam_perception</exec_depend>
+  <exec_depend>vehicle_approach</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 
