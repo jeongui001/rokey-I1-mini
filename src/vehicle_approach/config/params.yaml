@@ -1,20 +1,10 @@
 # Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml -r /tf:=/robot11/tf -r /tf_static:=/robot11/tf_static
 vehicle_approach_node:
   ros__parameters:
-    yolo_weights_path: "~/b3_int1_mini/best.pt"
-    vehicle_class_id: 0
-    camera_frame: "oakd_rgb_camera_optical_frame"
     base_frame: "base_link"
-    # 역투영/뎁스보정 하드웨어 가정 (코드가 검증하지 않으므로 배선 시 반드시 확인):
-    #   1) depth_topic은 rgb_topic과 픽셀 정렬(pixel-aligned)되어야 함 -- 같은 해상도, 같은 픽셀 좌표계
-    #   2) depth_topic은 16UC1 인코딩(밀리미터 단위)이어야 함 -- 코드가 /1000.0으로 미터 변환
-    #   3) camera_info_topic의 내부파라미터(K)는 rgb_topic과 동일한 해상도/센서 기준이어야 함
-    rgb_topic: "/robot11/oakd/rgb/image_raw"
+    nav_action_name: "/robot11/navigate_to_pose"
     depth_topic: "/robot11/oakd/stereo/image_raw"
-    camera_info_topic: "/robot11/oakd/rgb/camera_info"
 
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
-    confidence_threshold: 0.75             # TBD: YOLO confidence threshold (웹캠과 공용 정책)
-    moving_average_window: 3              # TBD: 이동평균 슬라이딩 윈도우 크기 N
-    goal_resend_threshold_m: 0.3          # TBD: goal 재전송 변화량 임계치(m)
-    approach_completion_threshold_m: 0.7  # TBD: 접근 완료 판정 거리 임계치(m) — Nav2 xy_goal_tolerance보다 충분히 커야 함(스펙 §5.2.5)
+    goal_resend_threshold_m: 0.3  # TBD: goal 재전송 변화량 임계치(m)
+    stop_depth_m: 0.7             # TBD: 전방 ROI 정지 판단 depth 임계치(m)

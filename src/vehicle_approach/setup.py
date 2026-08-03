@@ -15,7 +15,7 @@ setup(
     zip_safe=True,
     maintainer='hwangjeongui',
     maintainer_email='hwangjeongui01@gmail.com',
-    description='오크디 탐지 기반 뎁스보정/역투영/이동평균/goal계산으로 차량에 접근하는 노드',
+    description='웹캠이 발행한 차량 위치로 접근하고 오크디 depth로 전방 정지를 판단하는 노드',
     license='Apache-2.0',
     extras_require={'test': ['pytest']},
     entry_points={

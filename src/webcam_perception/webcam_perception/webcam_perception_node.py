@@ -37,7 +37,7 @@ class WebcamPerceptionNode(Node):
         super().__init__('webcam_perception_node')
 
         self.declare_parameter('debug_view', True)
-        self.declare_parameter('camera_index', 0)
+        self.declare_parameter('camera_index', 2)
         self.declare_parameter('yolo_weights_path', '')
         self.declare_parameter('vehicle_class_id', 0)
         self.declare_parameter('capture_period_s', 0.1)

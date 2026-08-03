@@ -1,0 +1,41 @@
+2026-08-03 19:50:51,656 [INFO] vehicle_approach: vehicle_approach enabled
+2026-08-03 19:50:56,574 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,575 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.95
+2026-08-03 19:50:56,575 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,575 [ERROR] vehicle_approach: tf lookup 실패, 이번 프레임 스킵: Lookup would require extrapolation into the past.  Requested time 1785754250.966529 but the earliest data is at time 1785754251.529183, when looking up transform from frame [oakd_rgb_camera_optical_frame] to frame [map]
+2026-08-03 19:50:56,648 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,648 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.96
+2026-08-03 19:50:56,649 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,649 [ERROR] vehicle_approach: tf lookup 실패, 이번 프레임 스킵: Lookup would require extrapolation into the past.  Requested time 1785754251.666438 but the earliest data is at time 1785754251.695489, when looking up transform from frame [oakd_rgb_camera_optical_frame] to frame [map]
+2026-08-03 19:50:56,688 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,688 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.96
+2026-08-03 19:50:56,688 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,689 [INFO] vehicle_approach.pipeline: 역투영/TF 변환 성공: map=(-2.237, -3.617)
+2026-08-03 19:50:56,689 [INFO] vehicle_approach.pipeline: 이동평균 갱신: avg=(-2.237, -3.617)
+2026-08-03 19:50:56,689 [INFO] vehicle_approach.pipeline: goal 재전송 필요: goal=(-2.237, -3.617)
+2026-08-03 19:50:56,817 [INFO] vehicle_approach: sending goal: x=-2.237, y=-3.617
+2026-08-03 19:50:56,861 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,862 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.95
+2026-08-03 19:50:56,862 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,863 [INFO] vehicle_approach.pipeline: 역투영/TF 변환 성공: map=(-2.238, -3.617)
+2026-08-03 19:50:56,863 [INFO] vehicle_approach.pipeline: 이동평균 갱신: avg=(-2.238, -3.617)
+2026-08-03 19:50:56,863 [INFO] vehicle_approach.pipeline: goal 재전송 불필요(임계값 이내)
+2026-08-03 19:50:56,870 [INFO] vehicle_approach: goal accepted by Nav2
+2026-08-03 19:50:56,931 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,931 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.96
+2026-08-03 19:50:56,932 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,933 [INFO] vehicle_approach.pipeline: 역투영/TF 변환 성공: map=(-2.238, -3.617)
+2026-08-03 19:50:56,933 [INFO] vehicle_approach.pipeline: 이동평균 갱신: avg=(-2.238, -3.617)
+2026-08-03 19:50:56,933 [INFO] vehicle_approach.pipeline: goal 재전송 불필요(임계값 이내)
+2026-08-03 19:50:56,984 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:56,985 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.95
+2026-08-03 19:50:56,985 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:56,986 [INFO] vehicle_approach.pipeline: 역투영/TF 변환 성공: map=(-2.238, -3.617)
+2026-08-03 19:50:56,986 [INFO] vehicle_approach.pipeline: 이동평균 갱신: avg=(-2.238, -3.617)
+2026-08-03 19:50:56,986 [INFO] vehicle_approach.pipeline: goal 재전송 불필요(임계값 이내)
+2026-08-03 19:50:57,592 [INFO] vehicle_approach: YOLO 추론 성공: detection 1건
+2026-08-03 19:50:57,592 [INFO] vehicle_approach.pipeline: best detection 선택: confidence=0.96
+2026-08-03 19:50:57,593 [INFO] vehicle_approach.pipeline: depth 보정 성공: raw=2.141 -> corrected=1.833
+2026-08-03 19:50:57,593 [INFO] vehicle_approach.pipeline: 역투영/TF 변환 성공: map=(-2.238, -3.617)
+2026-08-03 19:50:57,594 [INFO] vehicle_approach.pipeline: 이동평균 갱신: avg=(-2.238, -3.617)
+2026-08-03 19:50:57,594 [INFO] vehicle_approach.pipeline: goal 재전송 불필요(임계값 이내)
