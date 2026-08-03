@@ -37,7 +37,7 @@ class VehicleMissionNode(Node):
         )
 
         self._action_client = action_client or ActionClient(
-            self, NavigateToPose, 'navigate_to_pose'
+            self, NavigateToPose, '/robot11/navigate_to_pose'
         )
 
     def _on_webcam_pose(self, msg: PointStamped) -> None:

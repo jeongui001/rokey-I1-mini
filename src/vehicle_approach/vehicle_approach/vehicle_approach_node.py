@@ -42,9 +42,9 @@ class VehicleApproachNode(Node):
         self.declare_parameter('moving_average_window', 5)
         self.declare_parameter('goal_resend_threshold_m', 0.1)
         self.declare_parameter('approach_completion_threshold_m', 0.5)
-        self.declare_parameter('rgb_topic', '/oakd/rgb/image_raw')
-        self.declare_parameter('depth_topic', '/oakd/stereo/image_raw')
-        self.declare_parameter('camera_info_topic', '/oakd/rgb/camera_info')
+        self.declare_parameter('rgb_topic', '/robot11/oakd/rgb/image_raw')
+        self.declare_parameter('depth_topic', '/robot11/oakd/stereo/image_raw')
+        self.declare_parameter('camera_info_topic', '/robot11/oakd/rgb/camera_info')
 
         self._enabled = False
         self.create_subscription(Bool, '/vehicle_approach/enable', self._on_enable, ENABLE_QOS)
@@ -74,7 +74,7 @@ class VehicleApproachNode(Node):
         self._bridge = CvBridge()
 
         self._action_client = action_client or ActionClient(
-            self, NavigateToPose, 'navigate_to_pose'
+            self, NavigateToPose, '/robot11/navigate_to_pose'
         )
         self._current_goal_handle = None
 

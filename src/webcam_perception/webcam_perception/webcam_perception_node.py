@@ -7,7 +7,7 @@ from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile
 
-from webcam_perception.detection import Detection
+from webcam_perception.detection import Detection, select_best_detection
 from webcam_perception.homography import build_homography_matrix
 from webcam_perception.pipeline import VehicleStopPipeline
 from webcam_perception.stop_detector import StopDetector
@@ -33,6 +33,7 @@ class WebcamPerceptionNode(Node):
     def __init__(self, capture=None, detector=None):
         super().__init__('webcam_perception_node')
 
+        self.declare_parameter('debug_view', True)
         self.declare_parameter('camera_index', 0)
         self.declare_parameter('yolo_weights_path', '')
         self.declare_parameter('vehicle_class_id', 0)
@@ -92,8 +93,47 @@ class WebcamPerceptionNode(Node):
             return
 
         detections = self._run_detector(frame)
+        best = select_best_detection(detections, self._pipeline.confidence_threshold)
+
         now_sec = self.get_clock().now().nanoseconds / 1e9
         result = self._pipeline.process_detections(detections, now_sec)
+
+        if self.get_parameter('debug_view').value:
+            debug_frame = frame.copy()
+
+            roi_x1, roi_y1, roi_x2, roi_y2 = [int(v) for v in self._pipeline.roi]
+            cv2.rectangle(debug_frame, (roi_x1, roi_y1), (roi_x2, roi_y2), (255, 255, 0), 2)
+
+            for det in detections:
+                x1, y1, x2, y2 = map(int, [det.x1, det.y1, det.x2, det.y2])
+                color = (0, 255, 0) if best is det else (0, 0, 255)
+                cv2.rectangle(debug_frame, (x1, y1), (x2, y2), color, 2)
+                cv2.putText(
+                    debug_frame,
+                    f"{det.confidence:.2f}",
+                    (x1, max(y1 - 8, 20)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    color,
+                    2,
+                )
+
+            status_text = (
+                "PUBLISHED" if result is not None else "NO_PUBLISH"
+            )
+            cv2.putText(
+                debug_frame,
+                f"threshold={self._pipeline.confidence_threshold:.2f} status={status_text}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 255),
+                2,
+            )
+
+            cv2.imshow("webcam_perception_debug", debug_frame)
+            cv2.waitKey(1)
+
         if result is None:
             return
 
@@ -125,5 +165,6 @@ def main(args=None):
     try:
         rclpy.spin(node)
     finally:
+        cv2.destroyAllWindows()
         node.destroy_node()
         rclpy.shutdown()

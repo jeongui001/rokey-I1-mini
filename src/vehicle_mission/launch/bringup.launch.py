@@ -33,6 +33,10 @@ def generate_launch_description():
             executable='vehicle_approach_node',
             name='vehicle_approach_node',
             parameters=[approach_params],
+            remappings=[
+                ('/tf', '/robot11/tf'),
+                ('/tf_static', '/robot11/tf_static'),
+            ],
             output='screen',
         ),
     ])

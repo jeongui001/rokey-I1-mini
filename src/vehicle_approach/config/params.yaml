@@ -1,4 +1,4 @@
-# Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml
+# Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml -r /tf:=/robot11/tf -r /tf_static:=/robot11/tf_static
 vehicle_approach_node:
   ros__parameters:
     yolo_weights_path: "~/b3_int1_mini/best.pt"
@@ -9,9 +9,9 @@ vehicle_approach_node:
     #   1) depth_topic은 rgb_topic과 픽셀 정렬(pixel-aligned)되어야 함 -- 같은 해상도, 같은 픽셀 좌표계
     #   2) depth_topic은 16UC1 인코딩(밀리미터 단위)이어야 함 -- 코드가 /1000.0으로 미터 변환
     #   3) camera_info_topic의 내부파라미터(K)는 rgb_topic과 동일한 해상도/센서 기준이어야 함
-    rgb_topic: "/oakd/rgb/image_raw"
-    depth_topic: "/oakd/stereo/image_raw"
-    camera_info_topic: "/oakd/rgb/camera_info"
+    rgb_topic: "/robot11/oakd/rgb/image_raw"
+    depth_topic: "/robot11/oakd/stereo/image_raw"
+    camera_info_topic: "/robot11/oakd/rgb/camera_info"
 
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
     confidence_threshold: 0.5             # TBD: YOLO confidence threshold (웹캠과 공용 정책)

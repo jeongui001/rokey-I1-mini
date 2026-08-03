@@ -1,7 +1,8 @@
 # Run with: ros2 run vehicle_mission vehicle_mission_node --ros-args --params-file src/vehicle_mission/config/params.yaml
 vehicle_mission_node:
   ros__parameters:
-    # 대기 지점 = SLAM 시작 지점(undock 직후 map 원점, (0,0,0))으로 확정
-    waypoint_x: 0.0    # 맵 상 대기 지점 x(m)
-    waypoint_y: 0.0    # 맵 상 대기 지점 y(m)
-    waypoint_yaw: 0.0  # 대기 지점에서의 로봇 헤딩(rad)
+    # 대기 지점 = 실제 로봇 시작 지점 (2026-08-03 amcl_pose 실측값, our_maps.yaml 기준)
+    # (0,0,0) 가정은 폐기 -- our_maps.yaml 맵 범위(y ~ -7.75~-1.35) 밖이라 planning 실패함
+    waypoint_x: -1.409048182201432    # 맵 상 대기 지점 x(m)
+    waypoint_y: -2.040616318621385    # 맵 상 대기 지점 y(m)
+    waypoint_yaw: -1.7708             # 대기 지점에서의 로봇 헤딩(rad)

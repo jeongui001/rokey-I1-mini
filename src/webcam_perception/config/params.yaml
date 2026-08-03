@@ -12,5 +12,5 @@ webcam_perception_node:
     stop_duration_s: 3.0                    # TBD: 정지 판정 지속 시간(초)
     stop_pixel_threshold: 5.0               # TBD: 정지 판정 픽셀 변화 임계치
     confidence_threshold: 0.5               # TBD: YOLO confidence threshold
-    homography_pixel_points: [0.0, 0.0, 640.0, 0.0, 0.0, 480.0, 640.0, 480.0]  # TBD: 캘리브레이션 대응점(px)
-    homography_map_points: [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 1.0]            # TBD: 캘리브레이션 대응점(map)
+    homography_pixel_points: [600.0000, 294.0000, 302.0000, 111.0000, 466.0000, 60.0000, 98.0000, 150.0000]  # TBD: 캘리브레이션 대응점(px)
+    homography_map_points: [-2.4400, -3.3000, -3.3400, -5.1500, -4.7400, -5.2500, -2.2900, -5.3000]            # TBD: 캘리브레이션 대응점(map)
