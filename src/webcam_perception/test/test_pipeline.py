@@ -41,7 +41,7 @@ def test_not_stopped_yet_returns_none():
     assert pipeline.process_detections([detection], now_sec=0.0) is None
 
 
-def test_stopped_publishes_once_then_suppresses_repeat():
+def test_stopped_publishes_every_frame_while_stopped():
     pipeline = _make_pipeline(duration_s=2.0, pixel_threshold=5.0)
     detection = Detection(x1=40.0, y1=40.0, x2=60.0, y2=60.0, confidence=0.9)
 
@@ -54,8 +54,9 @@ def test_stopped_publishes_once_then_suppresses_repeat():
     assert math.isclose(x, 0.5, abs_tol=1e-6)
     assert math.isclose(y, 0.6, abs_tol=1e-6)
 
-    # 계속 정지 상태 유지 중이면 재발행하지 않는다 (이벤트당 1회, 스펙 §2 step2)
-    assert pipeline.process_detections([detection], now_sec=3.0) is None
+    # 차량 재이동 감지를 위해 정지 상태가 유지되는 동안 계속 발행한다
+    result_again = pipeline.process_detections([detection], now_sec=3.0)
+    assert result_again is not None
 
 
 def test_leaving_roi_then_stopping_again_republishes():
@@ -76,10 +77,9 @@ def test_leaving_roi_then_stopping_again_republishes():
     assert second is not None
 
 
-def test_single_frame_jitter_does_not_cause_duplicate_publish():
-    # 계속 주차된 차량 중 단일 프레임에서 튀는(jitter) bbox 하나만 들어와도
-    # 차량을 놓친 것(best is None)은 아니므로 재발행 가드가 풀리면 안 된다
-    # (스펙 §2 step2 "이벤트당 1회 전달").
+def test_single_frame_jitter_suppresses_publish_until_settled_again():
+    # 단일 프레임 튐(jitter)이 정지 판정 윈도우에 남아있는 동안은 발행이 멈추고,
+    # 윈도우에서 빠져나가 다시 정지 판정을 받으면 발행이 재개된다.
     pipeline = _make_pipeline(duration_s=2.0, pixel_threshold=5.0)
     parked = Detection(x1=40.0, y1=40.0, x2=60.0, y2=60.0, confidence=0.9)  # center (50, 50)
     jitter = Detection(x1=50.0, y1=40.0, x2=70.0, y2=60.0, confidence=0.9)  # center (60, 50)
@@ -89,11 +89,15 @@ def test_single_frame_jitter_does_not_cause_duplicate_publish():
         pipeline.process_detections([parked], now_sec=1.0),
         pipeline.process_detections([parked], now_sec=2.0),
         pipeline.process_detections([parked], now_sec=3.0),
-        pipeline.process_detections([jitter], now_sec=4.0),  # 단일 프레임 노이즈, 트래킹은 유지 중
+        pipeline.process_detections([jitter], now_sec=4.0),  # 단일 프레임 노이즈
         pipeline.process_detections([parked], now_sec=5.0),
         pipeline.process_detections([parked], now_sec=6.0),
         pipeline.process_detections([parked], now_sec=7.0),
     ]
 
-    publishes = [r for r in results if r is not None]
-    assert len(publishes) == 1
+    assert results[2] is not None
+    assert results[3] is not None
+    assert results[4] is None
+    assert results[5] is None
+    assert results[6] is None
+    assert results[7] is not None

@@ -8,7 +8,7 @@ webcam_perception_node:
 
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
     # 실측 후 이 파일만 갱신하면 되며 코드 변경은 필요 없다.
-    roi: [220.0, 140.0, 420.0, 340.0]      # TBD: 실제 웹캠 ROI 사각형(px)
+    roi: [0.0, 0.0, 640.0, 480.0]      # TBD: 실제 웹캠 ROI 사각형(px)
     stop_duration_s: 3.0                    # TBD: 정지 판정 지속 시간(초)
     stop_pixel_threshold: 5.0               # TBD: 정지 판정 픽셀 변화 임계치
     confidence_threshold: 0.75               # TBD: YOLO confidence threshold

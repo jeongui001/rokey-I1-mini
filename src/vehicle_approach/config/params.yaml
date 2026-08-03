@@ -8,3 +8,4 @@ vehicle_approach_node:
     # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
     goal_resend_threshold_m: 0.3  # TBD: goal 재전송 변화량 임계치(m)
     stop_depth_m: 0.7             # TBD: 전방 ROI 정지 판단 depth 임계치(m)
+    vehicle_pose_timeout_s: 2.0   # TBD: 웹캠 위치 유실 판단 타임아웃(s)

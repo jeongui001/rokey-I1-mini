@@ -2,6 +2,7 @@ import numpy as np
 import rclpy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PointStamped, TransformStamped
+from rclpy.duration import Duration
 
 from vehicle_approach.vehicle_approach_node import VehicleApproachNode
 
@@ -112,6 +113,30 @@ def test_disabled_pipeline_does_nothing():
         node._on_depth(_make_depth_msg(2000))
 
         assert fake_client.sent_goals == []
+    finally:
+        rclpy.shutdown()
+
+
+def test_stale_webcam_pose_cancels_goal():
+    rclpy.init()
+    try:
+        fake_client = _FakeActionClient()
+        node = VehicleApproachNode(action_client=fake_client)
+        node._enabled = True
+        node.set_parameters([rclpy.parameter.Parameter('vehicle_pose_timeout_s', value=1.0)])
+        _seed_tf(node)
+        node._on_webcam_pose(_make_webcam_pose(3.0, 1.0))
+
+        node._on_depth(_make_depth_msg(2000))
+        assert len(fake_client.sent_goals) == 1
+        assert node._current_goal_handle is not None
+
+        node._last_pose_received_time = node.get_clock().now() - Duration(seconds=2.0)
+        node._on_depth(_make_depth_msg(2000))
+
+        assert node._current_goal_handle is None
+        assert fake_client.goal_handles[0].cancel_calls == 1
+        assert len(fake_client.sent_goals) == 1  # 유실 상태에서는 재전송하지 않는다
     finally:
         rclpy.shutdown()
 

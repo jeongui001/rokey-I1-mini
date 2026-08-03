@@ -28,9 +28,11 @@ class VehicleApproachNode(Node):
         self.declare_parameter('depth_topic', '/robot11/oakd/stereo/image_raw')
         self.declare_parameter('goal_resend_threshold_m', 0.1)
         self.declare_parameter('stop_depth_m', 0.7)
+        self.declare_parameter('vehicle_pose_timeout_s', 2.0)
 
         self._enabled = False
         self._latest_vehicle_pose: PointStamped | None = None
+        self._last_pose_received_time = None
         self._last_sent_goal: tuple[float, float] | None = None
         self._current_goal_handle = None
 
@@ -68,14 +70,24 @@ class VehicleApproachNode(Node):
 
     def _on_webcam_pose(self, msg: PointStamped) -> None:
         self._latest_vehicle_pose = msg
+        self._last_pose_received_time = self.get_clock().now()
         self.get_logger().info(
             f'received webcam pose: x={msg.point.x:.3f}, y={msg.point.y:.3f}'
         )
+
+    def _is_vehicle_pose_stale(self) -> bool:
+        timeout_s = self.get_parameter('vehicle_pose_timeout_s').value
+        elapsed_s = (self.get_clock().now() - self._last_pose_received_time).nanoseconds / 1e9
+        return elapsed_s > timeout_s
 
     def _on_depth(self, depth_msg: Image) -> None:
         if not self._enabled:
             return
         if self._latest_vehicle_pose is None:
+            return
+        if self._is_vehicle_pose_stale():
+            self.get_logger().info('vehicle pose stale -- cancelling goal')
+            self._cancel_current_goal()
             return
 
         depth_image = self._bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
