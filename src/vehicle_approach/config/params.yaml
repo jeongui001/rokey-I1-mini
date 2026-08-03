@@ -1,7 +1,7 @@
 # Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml
 vehicle_approach_node:
   ros__parameters:
-    yolo_weights_path: "/absolute/path/to/oakd_yolo_weights.pt"
+    yolo_weights_path: "~/b3_int1_mini/yolo_webcam.pt"
     vehicle_class_id: 0
     camera_frame: "camera_frame"  # TBD: 실제 오크디 RGB optical frame 이름으로 교체 (RGB 내부파라미터로 역투영하므로 depth frame이 아니라 RGB optical frame이어야 함)
     base_frame: "base_link"

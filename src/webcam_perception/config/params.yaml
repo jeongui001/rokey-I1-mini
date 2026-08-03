@@ -2,7 +2,7 @@
 webcam_perception_node:
   ros__parameters:
     camera_index: 0
-    yolo_weights_path: "/absolute/path/to/webcam_yolo_weights.pt"
+    yolo_weights_path: "~/b3_int1_mini/yolo_webcam.pt"
     vehicle_class_id: 0
     capture_period_s: 0.1
 

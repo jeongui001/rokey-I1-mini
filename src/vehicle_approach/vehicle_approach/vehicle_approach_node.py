@@ -1,3 +1,5 @@
+import os
+
 import rclpy
 import tf2_geometry_msgs  # noqa: F401
 from cv_bridge import CvBridge
@@ -67,7 +69,7 @@ class VehicleApproachNode(Node):
 
         self._vehicle_class_id = self.get_parameter('vehicle_class_id').value
         if detector is None:
-            detector = YOLO(self.get_parameter('yolo_weights_path').value)
+            detector = YOLO(os.path.expanduser(self.get_parameter('yolo_weights_path').value))
         self._detector = detector
         self._bridge = CvBridge()
 

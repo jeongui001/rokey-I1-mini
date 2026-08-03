@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import numpy as np
 import rclpy
@@ -78,7 +80,7 @@ class WebcamPerceptionNode(Node):
         if detector is None:
             if YOLO is None:
                 raise ImportError('ultralytics가 필요합니다 — pip install ultralytics')
-            detector = YOLO(self.get_parameter('yolo_weights_path').value)
+            detector = YOLO(os.path.expanduser(self.get_parameter('yolo_weights_path').value))
         self._detector = detector
 
         period = self.get_parameter('capture_period_s').value
