@@ -9,8 +9,11 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile
 
 from webcam_perception.detection import Detection, select_best_detection
 from webcam_perception.homography import build_homography_matrix
+from webcam_perception.logging_setup import setup_package_logger
 from webcam_perception.pipeline import VehicleStopPipeline
 from webcam_perception.stop_detector import StopDetector
+
+logger = setup_package_logger('webcam_perception')
 
 try:
     from ultralytics import YOLO
@@ -57,6 +60,7 @@ class WebcamPerceptionNode(Node):
         map_points = _pairs(list(self.get_parameter('homography_map_points').value))
         homography_matrix = build_homography_matrix(pixel_points, map_points)
         if homography_matrix is None:
+            logger.error('호모그래피 계산 실패 — 캘리브레이션 대응점을 확인하세요')
             raise ValueError('호모그래피 계산 실패 — 캘리브레이션 대응점을 확인하세요')
 
         stop_detector = StopDetector(
@@ -90,9 +94,15 @@ class WebcamPerceptionNode(Node):
     def _on_timer(self) -> None:
         ok, frame = self._capture.read()
         if not ok:
+            logger.error('카메라 프레임 캡처 실패')
             return
 
-        detections = self._run_detector(frame)
+        try:
+            detections = self._run_detector(frame)
+        except Exception as ex:
+            logger.error(f'YOLO 추론 실패: {ex}')
+            return
+        logger.info(f'YOLO 추론 성공: detection {len(detections)}건')
         best = select_best_detection(detections, self._pipeline.confidence_threshold)
 
         now_sec = self.get_clock().now().nanoseconds / 1e9
@@ -145,6 +155,7 @@ class WebcamPerceptionNode(Node):
         msg.point.y = map_y
         msg.point.z = 0.0
         self._publisher.publish(msg)
+        logger.info(f'vehicle_initial_pose publish 완료: x={map_x:.3f}, y={map_y:.3f}')
 
     def _run_detector(self, frame: np.ndarray) -> list[Detection]:
         results = self._detector(frame, verbose=False)[0]

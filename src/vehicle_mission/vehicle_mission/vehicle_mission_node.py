@@ -6,8 +6,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile
 from std_msgs.msg import Bool
 
+from vehicle_mission.logging_setup import setup_package_logger
 from vehicle_mission.nav_result import handle_nav_result
 from vehicle_mission.pose_utils import waypoint_to_pose_stamped
+
+logger = setup_package_logger('vehicle_mission')
 
 TRANSIENT_LOCAL_QOS = QoSProfile(
     depth=1,
@@ -43,7 +46,7 @@ class VehicleMissionNode(Node):
     def _on_webcam_pose(self, msg: PointStamped) -> None:
         # 로깅/모니터링용 보관만 한다 — 이동 목표 계산에는 절대 사용하지 않는다 (스펙 §1.3)
         self._last_webcam_pose = msg
-        self.get_logger().info(
+        logger.info(
             f'webcam initial pose (logging only): x={msg.point.x:.3f}, y={msg.point.y:.3f}'
         )
 
@@ -55,10 +58,10 @@ class VehicleMissionNode(Node):
         goal = NavigateToPose.Goal()
         goal.pose = pose
 
-        self.get_logger().info(
+        logger.info(
             f'sending waypoint goal: x={x:.3f}, y={y:.3f}, yaw={yaw:.3f}'
         )
-        self.get_logger().info('waiting for Nav2 navigate_to_pose action server...')
+        logger.info('waiting for Nav2 navigate_to_pose action server...')
         self._action_client.wait_for_server()
         future = self._action_client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_response)
@@ -66,7 +69,7 @@ class VehicleMissionNode(Node):
     def _on_goal_response(self, future) -> None:
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().error('waypoint goal rejected by Nav2')
+            logger.error('waypoint goal rejected by Nav2')
             return
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self._on_nav_result)
@@ -77,9 +80,9 @@ class VehicleMissionNode(Node):
             msg = Bool()
             msg.data = True
             self._enable_publisher.publish(msg)
-            self.get_logger().info('waypoint reached, vehicle_approach enabled')
+            logger.info('waypoint reached, vehicle_approach enabled')
         else:
-            self.get_logger().warn(
+            logger.warning(
                 f'nav goal finished with status={result.status}, approach not enabled'
             )
 

@@ -6,6 +6,7 @@ TRASH-FILES.md
 build/
 install/
 log/
+src/*/logs/
 
 # Python
 __pycache__/
