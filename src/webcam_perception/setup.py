@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'webcam_perception_node = webcam_perception.webcam_perception_node:main',
+            'homography_calibration_tool = webcam_perception.homography_calibration_tool:main',
         ],
     },
 )

@@ -1,7 +1,7 @@
 # Run with: ros2 run vehicle_mission vehicle_mission_node --ros-args --params-file src/vehicle_mission/config/params.yaml
 vehicle_mission_node:
   ros__parameters:
-    # 아래 값들은 스펙 §7 TBD 항목 — 실측 후 확정 필요한 대기 지점 좌표의 임시 기본값이다.
-    waypoint_x: 0.0    # TBD: 맵 상 대기 지점 x(m)
-    waypoint_y: 0.0    # TBD: 맵 상 대기 지점 y(m)
-    waypoint_yaw: 0.0  # TBD: 대기 지점에서의 로봇 헤딩(rad)
+    # 대기 지점 = SLAM 시작 지점(undock 직후 map 원점, (0,0,0))으로 확정
+    waypoint_x: 0.0    # 맵 상 대기 지점 x(m)
+    waypoint_y: 0.0    # 맵 상 대기 지점 y(m)
+    waypoint_yaw: 0.0  # 대기 지점에서의 로봇 헤딩(rad)
