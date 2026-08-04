@@ -2,8 +2,8 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>vehicle_mission</name>
-  <version>0.0.1</version>
-  <description>대기 지점 이동 후 vehicle_approach_node를 활성화하는 미션 상태 전이 노드</description>
+  <version>0.0.2</version>
+  <description>자동 initial pose, 웹캠 트리거 언도킹, 첫 웨이포인트 미션</description>
   <maintainer email="hwangjeongui01@gmail.com">hwangjeongui</maintainer>
   <license>Apache-2.0</license>
 
@@ -12,14 +12,16 @@
   <depend>std_msgs</depend>
   <depend>nav2_msgs</depend>
   <depend>action_msgs</depend>
+  <depend>irobot_create_msgs</depend>
+  <depend>lifecycle_msgs</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>turtlebot4_navigation</exec_depend>
   <exec_depend>webcam_perception</exec_depend>
   <exec_depend>vehicle_approach</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
-
-  <export>
-    <build_type>ament_python</build_type>
-  </export>
+  <export><build_type>ament_python</build_type></export>
 </package>

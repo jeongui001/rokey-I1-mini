@@ -1,8 +1,37 @@
-# Run with: ros2 run vehicle_mission vehicle_mission_node --ros-args --params-file src/vehicle_mission/config/params.yaml
 vehicle_mission_node:
   ros__parameters:
-    # 대기 지점 = 실제 로봇 시작 지점 (2026-08-03 amcl_pose 실측값, our_maps.yaml 기준)
-    # (0,0,0) 가정은 폐기 -- our_maps.yaml 맵 범위(y ~ -7.75~-1.35) 밖이라 planning 실패함
-    waypoint_x: -1.409048182201432    # 맵 상 대기 지점 x(m)
-    waypoint_y: -2.040616318621385    # 맵 상 대기 지점 y(m)
-    waypoint_yaw: -1.7708             # 대기 지점에서의 로봇 헤딩(rad)
+    # 도킹 상태에서의 실제 지도 위치. RViz 2D Pose Estimate를 대신한다.
+    auto_set_initial_pose: true
+    initial_pose_x: -1.409048182201432
+    initial_pose_y: -2.040616318621385
+    initial_pose_yaw: 1.3708
+    initial_pose_covariance_xy: 0.25
+    initial_pose_covariance_yaw: 0.06853891945200942
+    initial_pose_retry_s: 2.0
+
+    # 언도킹 완료 위치(-1.45, -2.0)에서 도킹 스테이션을 벗어나기 위한 첫 대기 지점.
+    # 도킹 상태 초기 yaw와 약 180도 반대인 언도킹 후 방향으로 waypoint yaw를 설정한다.
+    waypoint_x: -1.5
+    waypoint_y: -2.5
+    waypoint_yaw: -1.7708
+
+    post_undock_wait_s: 1.5
+    action_retry_s: 2.0
+    max_undock_attempts: 3
+    max_waypoint_attempts: 3
+    # 최종 yaw 정렬만 실패했더라도 목표점 0.35m 안이면 추종을 시작한다.
+    waypoint_position_only_fallback: true
+    waypoint_position_tolerance_m: 0.35
+
+    # 웹캠 상태 heartbeat가 이 시간 이상 끊기면 보이지 않는 것으로 처리한다.
+    webcam_state_timeout_s: 1.0
+    webcam_trigger_topic: "/webcam/vehicle_detected"
+
+    approach_enable_topic: "/vehicle_approach/enable"
+    initial_pose_topic: "/robot11/initialpose"
+    amcl_pose_topic: "/robot11/amcl_pose"
+    undock_action_name: "/robot11/undock"
+    nav_action_name: "/robot11/navigate_to_pose"
+    bt_navigator_state_service: "/robot11/bt_navigator/get_state"
+    map_frame: "map"
+    base_frame: "base_link"

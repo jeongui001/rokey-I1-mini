@@ -1,73 +1,86 @@
-import math
-
 import numpy as np
 import rclpy
-from geometry_msgs.msg import PointStamped
+from std_msgs.msg import Bool
 
 from webcam_perception.webcam_perception_node import WebcamPerceptionNode
 
 
-class _FakeBox:
-    def __init__(self, x1, y1, x2, y2, conf, cls_id):
-        self.xyxy = [[x1, y1, x2, y2]]
-        self.conf = [conf]
-        self.cls = [cls_id]
+class _Box:
+    def __init__(self):
+        self.xyxy = [[250.0, 170.0, 300.0, 240.0]]
+        self.conf = [0.9]
+        self.cls = [0]
 
 
-class _FakeResult:
-    def __init__(self, boxes):
-        self.boxes = boxes
+class _Result:
+    def __init__(self, visible=True):
+        self.boxes = [_Box()] if visible else []
 
 
-class _FakeDetector:
-    def __init__(self, boxes):
-        self._boxes = boxes
+class _Detector:
+    def __init__(self):
+        self.visible = True
 
     def __call__(self, frame, verbose=False):
-        return [_FakeResult(self._boxes)]
+        return [_Result(self.visible)]
 
 
-class _FakeCapture:
-    def __init__(self, frame):
-        self._frame = frame
-
+class _Capture:
     def read(self):
-        return True, self._frame
+        return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+    def release(self):
+        pass
 
 
-def test_stopped_vehicle_publishes_map_pose():
+def test_visible_then_missing_publishes_false():
     rclpy.init()
+    listener = None
+    node = None
     try:
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        boxes = [_FakeBox(100.0, 100.0, 140.0, 180.0, 0.9, 0)]
-        node = WebcamPerceptionNode(capture=_FakeCapture(frame), detector=_FakeDetector(boxes))
-        # 정지 판정 지속시간을 0으로 낮춰 단일 프레임으로도 즉시 정지 판정이 나오게 함
-        # (StopDetector 자체의 시간 로직은 Task 2에서 이미 검증했으므로 여기서는
-        #  노드 배선: capture -> detector -> pipeline -> publish 만 확인한다)
-        node._pipeline.stop_detector.duration_s = 0.0
+        detector = _Detector()
+        node = WebcamPerceptionNode(
+            capture=_Capture(),
+            detector=detector,
+        )
+        node.set_parameters([
+            rclpy.parameter.Parameter(
+                'detect_consecutive_frames',
+                value=3,
+            ),
+            rclpy.parameter.Parameter(
+                'lost_consecutive_frames',
+                value=2,
+            ),
+        ])
 
-        listener = rclpy.create_node('test_listener')
-        received: list[PointStamped] = []
+        received = []
+        listener = rclpy.create_node('trigger_listener')
         listener.create_subscription(
-            PointStamped,
-            '/webcam/vehicle_initial_pose',
-            lambda msg: received.append(msg),
-            node._publisher.qos_profile,
+            Bool,
+            '/webcam/vehicle_detected',
+            lambda msg: received.append(msg.data),
+            node._trigger_publisher.qos_profile,
         )
 
         node._on_timer()
-        for _ in range(20):
-            rclpy.spin_once(node, timeout_sec=0.05)
-            rclpy.spin_once(listener, timeout_sec=0.05)
-            if received:
-                break
+        node._on_timer()
+        node._on_timer()
 
-        assert len(received) == 1
-        assert received[0].header.frame_id == 'map'
-        # 기본 호모그래피 파라미터(px [0,0,640,0,0,480,640,480] -> map [0,0,1,0,0,1,1,1])로
-        # bbox 하단 중심 (120, 180)이 (120/640, 180/480) = (0.1875, 0.375)로 변환되는지 검증한다.
-        # bbox 중심이 아닌 하단 중심을 쓰는지가 x는 같고 y만 달라지므로 y 검증이 핵심.
-        assert math.isclose(received[0].point.x, 0.1875, abs_tol=1e-6)
-        assert math.isclose(received[0].point.y, 0.375, abs_tol=1e-6)
+        detector.visible = False
+        node._on_timer()
+        node._on_timer()
+
+        for _ in range(10):
+            rclpy.spin_once(node, timeout_sec=0.01)
+            rclpy.spin_once(listener, timeout_sec=0.05)
+
+        assert True in received
+        true_index = received.index(True)
+        assert False in received[true_index + 1:]
     finally:
+        if listener is not None:
+            listener.destroy_node()
+        if node is not None:
+            node.destroy_node()
         rclpy.shutdown()

@@ -1,16 +1,27 @@
-# Run with: ros2 run webcam_perception webcam_perception_node --ros-args --params-file src/webcam_perception/config/params.yaml
 webcam_perception_node:
   ros__parameters:
+    debug_view: true
     camera_index: 2
     yolo_weights_path: "~/b3_int1_mini/best.pt"
     vehicle_class_id: 0
     capture_period_s: 0.1
 
-    # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
-    # 실측 후 이 파일만 갱신하면 되며 코드 변경은 필요 없다.
-    roi: [220.0, 140.0, 420.0, 340.0]      # TBD: 실제 웹캠 ROI 사각형(px)
-    stop_duration_s: 3.0                    # TBD: 정지 판정 지속 시간(초)
-    stop_pixel_threshold: 5.0               # TBD: 정지 판정 픽셀 변화 임계치
-    confidence_threshold: 0.75               # TBD: YOLO confidence threshold
-    homography_pixel_points: [600.0000, 294.0000, 302.0000, 111.0000, 466.0000, 60.0000, 98.0000, 150.0000]  # TBD: 캘리브레이션 대응점(px)
-    homography_map_points: [-2.4400, -3.3000, -3.3400, -5.1500, -4.7400, -5.2500, -2.2900, -5.3000]            # TBD: 캘리브레이션 대응점(map)
+    # 외부 웹캠에서 RC카를 지속 감시한다.
+    roi: [220.0, 140.0, 420.0, 340.0]
+    confidence_threshold: 0.75
+    detect_consecutive_frames: 3
+    lost_consecutive_frames: 5
+    # 과거 파라미터 호환용. 반드시 false로 둔다.
+    trigger_consecutive_frames: 3
+    trigger_latch: false
+
+    vehicle_visible_topic: "/webcam/vehicle_detected"
+    live_map_pose_topic: "/webcam/vehicle_map_pose"
+
+    # 구버전 정지 판정 one-shot 토픽은 추종에 필요하지 않으므로 끈다.
+    # false이면 '이번 정지 구간에서 이미 publish함' 로그도 나오지 않는다.
+    publish_legacy_initial_pose: false
+    stop_duration_s: 3.0
+    stop_pixel_threshold: 5.0
+    homography_pixel_points: [600.0, 294.0, 302.0, 111.0, 466.0, 60.0, 98.0, 150.0]
+    homography_map_points: [-2.44, -3.30, -3.34, -5.15, -4.74, -5.25, -2.29, -5.30]

@@ -1,20 +1,50 @@
-# Run with: ros2 run vehicle_approach vehicle_approach_node --ros-args --params-file src/vehicle_approach/config/params.yaml -r /tf:=/robot11/tf -r /tf_static:=/robot11/tf_static
 vehicle_approach_node:
   ros__parameters:
+    debug_view: true
     yolo_weights_path: "~/b3_int1_mini/best.pt"
     vehicle_class_id: 0
-    camera_frame: "oakd_rgb_camera_optical_frame"
-    base_frame: "base_link"
-    # 역투영/뎁스보정 하드웨어 가정 (코드가 검증하지 않으므로 배선 시 반드시 확인):
-    #   1) depth_topic은 rgb_topic과 픽셀 정렬(pixel-aligned)되어야 함 -- 같은 해상도, 같은 픽셀 좌표계
-    #   2) depth_topic은 16UC1 인코딩(밀리미터 단위)이어야 함 -- 코드가 /1000.0으로 미터 변환
-    #   3) camera_info_topic의 내부파라미터(K)는 rgb_topic과 동일한 해상도/센서 기준이어야 함
+    confidence_threshold: 0.75
+
+    # 업로드본에서 사용하던 OAK-D 토픽을 유지했다.
     rgb_topic: "/robot11/oakd/rgb/image_raw"
     depth_topic: "/robot11/oakd/stereo/image_raw"
+    # 현재 실제 발행이 확인된 compressedDepth 토픽을 사용한다.
+    use_compressed_depth: true
+    depth_compressed_topic: "/robot11/oakd/stereo/image_raw/compressedDepth"
     camera_info_topic: "/robot11/oakd/rgb/camera_info"
+    camera_frame: "oakd_rgb_camera_optical_frame"
+    base_frame: "base_link"
+    nav_action_name: "/robot11/navigate_to_pose"
+    sync_queue_size: 10
+    sync_slop_s: 0.15
 
-    # 아래 값들은 스펙 §7 TBD 항목 — 실측 캘리브레이션 전 임시 기본값이다.
-    confidence_threshold: 0.75             # TBD: YOLO confidence threshold (웹캠과 공용 정책)
-    moving_average_window: 3              # TBD: 이동평균 슬라이딩 윈도우 크기 N
-    goal_resend_threshold_m: 0.3          # TBD: goal 재전송 변화량 임계치(m)
-    approach_completion_threshold_m: 0.7  # TBD: 접근 완료 판정 거리 임계치(m) — Nav2 xy_goal_tolerance보다 충분히 커야 함(스펙 §5.2.5)
+    # OAK-D 정밀 추종
+    moving_average_window: 3
+    goal_resend_threshold_m: 0.20
+    goal_update_rate_hz: 2.0
+    desired_follow_distance_m: 0.70
+    distance_deadband_m: 0.08
+    target_timeout_s: 0.80
+
+    bbox_inner_ratio: 0.60
+    target_min_depth_m: 0.20
+    target_max_depth_m: 4.00
+    apply_depth_correction: true
+
+    # 외부 웹캠 지속 감시 및 OAK-D 재탐색 가이드
+    webcam_visible_topic: "/webcam/vehicle_detected"
+    webcam_map_pose_topic: "/webcam/vehicle_map_pose"
+    webcam_state_timeout_s: 1.0
+    webcam_pose_timeout_s: 0.8
+    oakd_loss_before_webcam_guide_s: 0.35
+    webcam_guide_standoff_m: 0.90
+    webcam_guide_goal_threshold_m: 0.20
+    webcam_guide_rate_hz: 1.0
+
+    # OAK-D Depth를 Nav2 동적 장애물로 반영
+    publish_obstacle_cloud: true
+    obstacle_cloud_topic: "/vehicle_approach/obstacle_points"
+    obstacle_cloud_rate_hz: 5.0
+    obstacle_cloud_stride: 10
+    obstacle_min_depth_m: 0.15
+    obstacle_max_depth_m: 3.0
