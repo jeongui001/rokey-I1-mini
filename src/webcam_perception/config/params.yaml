@@ -6,9 +6,9 @@ webcam_perception_node:
     vehicle_class_id: 0
     capture_period_s: 0.1
 
-    # 외부 웹캠에서 RC카를 지속 감시한다.
-    roi: [220.0, 140.0, 420.0, 340.0]
-    confidence_threshold: 0.75
+    # 640x480 외부 웹캠의 전체 화면에서 RC카를 지속 감시한다.
+    roi: [0.0, 0.0, 640.0, 480.0]
+    confidence_threshold: 0.9
     detect_consecutive_frames: 3
     lost_consecutive_frames: 5
     # 과거 파라미터 호환용. 반드시 false로 둔다.

@@ -1,8 +1,38 @@
 # vehicle_approach
+
+## OAK-D 탐지 영상 (고속 표시)
+
+추론/Depth 동기화 처리와 화면 표시 경로를 분리했다. 따라서 검출 박스는 최신
+YOLO 결과를 유지하면서 RGB 프레임은 OAK-D 입력 속도로 계속 갱신된다. 기본으로
+OpenCV 창과 `/vehicle_approach/annotated_image` 토픽을 모두 제공하며 화면 왼쪽 위에
+실측 `DISPLAY ... FPS`를 표시한다.
+
+YOLO 검출은 추종 활성화 여부와 무관하게 실행되므로, `enable=false`인 초기 단계에도
+OAK-D 화면에서 RC카 bbox와 confidence를 확인할 수 있다.
+
+```bash
+ros2 topic hz /vehicle_approach/annotated_image
+ros2 run rqt_image_view rqt_image_view /vehicle_approach/annotated_image
+```
+
+실제 표시 FPS의 상한은 OAK-D의 RGB 발행 FPS이다. RGB 토픽이 30 Hz 이상이면 이
+화면도 약 30 FPS로 갱신되며, 먼저 아래 명령으로 카메라 입력 속도를 확인할 수 있다.
+
+```bash
+ros2 topic hz /robot11/oakd/rgb/image_raw
+```
 3
 `/vehicle_approach/enable`이 true가 되면 오크디(AMR 카메라)로 차량을 탐지해 뎁스 보정 →
 역투영+TF 변환 → 이동평균 → goal 계산을 거쳐 Nav2로 반복 접근하다가, 임계 거리 이내에서 정지하는
 패키지. `docs/PROJECT_NOTES.md`의 **§3 nav 파이프라인 2~7층**에 해당한다.
+
+## 카메라 전환 순서
+
+1. 웹캠 전체 ROI 검출로 미션을 시작하고 웹캠 map 좌표로 초기 접근한다.
+2. OAK-D가 RC카를 처음 탐지하면 `OAK-D FOLLOW`로 한 번만 전환한다.
+3. 이후에는 웹캠 검출 유무와 웹캠 좌표를 무시하고 OAK-D RGB·Depth만 사용한다.
+4. OAK-D가 RC카를 놓치면 현재 Nav2 goal을 취소하고 정지한 채 OAK-D 재탐지를 기다린다.
+   웹캠 좌표로 되돌아가지 않는다.
 
 ## 학습 순서
 

@@ -190,8 +190,8 @@ class VehicleMissionNode(Node):
 
         self._timer = self.create_timer(0.2, self._coordinator_tick)
         logger.info(
-            'mission ready: initial pose -> continuous webcam guard -> '
-            'undock -> first waypoint -> OAK-D follow'
+            'mission ready: initial webcam ROI trigger -> undock -> '
+            'first waypoint -> OAK-D-only follow'
         )
 
     def _set_state(self, state: MissionState) -> None:
@@ -533,7 +533,10 @@ class VehicleMissionNode(Node):
         enable.data = True
         self._enable_publisher.publish(enable)
         self._set_state(MissionState.APPROACH_ENABLED)
-        logger.info('first waypoint reached; OAK-D/webcam follower enabled')
+        logger.info(
+            'first waypoint reached; initial webcam guide enabled until '
+            'first OAK-D detection'
+        )
 
     def _cancel_waypoint_for_webcam_loss(self) -> None:
         if self._state != MissionState.NAVIGATING_TO_WAYPOINT:

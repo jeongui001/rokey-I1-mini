@@ -1,6 +1,11 @@
 vehicle_approach_node:
   ros__parameters:
-    debug_view: true
+    # rqt_image_view 사용 시 별도 OpenCV 창은 꺼서 CPU 사용량을 줄인다.
+    debug_view: false
+    # RGB 화면/annotated 토픽은 YOLO+Depth 동기화와 분리되어 OAK-D 입력 FPS로 갱신된다.
+    publish_annotated_image: true
+    display_rate_hz: 30.0
+    annotated_image_topic: "/vehicle_approach/annotated_image"
     yolo_weights_path: "~/b3_int1_mini/best.pt"
     vehicle_class_id: 0
     confidence_threshold: 0.75
@@ -31,7 +36,8 @@ vehicle_approach_node:
     target_max_depth_m: 4.00
     apply_depth_correction: true
 
-    # 외부 웹캠 지속 감시 및 OAK-D 재탐색 가이드
+    # 초기 접근에만 사용하는 외부 웹캠 가이드.
+    # OAK-D가 RC카를 한 번 탐지하면 아래 입력은 이후 이동에 사용되지 않는다.
     webcam_visible_topic: "/webcam/vehicle_detected"
     webcam_map_pose_topic: "/webcam/vehicle_map_pose"
     webcam_state_timeout_s: 1.0

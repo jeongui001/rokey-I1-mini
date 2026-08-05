@@ -1,5 +1,7 @@
 import math
 import os
+import threading
+import time
 
 import cv2
 import numpy as np
@@ -10,7 +12,9 @@ from geometry_msgs.msg import Point, PointStamped, PoseStamped
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import (
     QoSDurabilityPolicy,
@@ -48,18 +52,24 @@ ENABLE_QOS = QoSProfile(
 
 
 class VehicleApproachNode(Node):
-    """OAK-D 정밀 추종 + 외부 웹캠 가이드 + 웹캠 유실 안전 정지.
+    """초기 웹캠 가이드 후 OAK-D 전용 정밀 추종.
 
     우선순위:
-    1. 외부 웹캠에서 RC카가 사라지면 모든 이동 goal 취소
-    2. 웹캠과 OAK-D에서 모두 보이면 OAK-D RGB-D 정밀 추종
-    3. 웹캠에는 보이지만 OAK-D에서 안 보이면 웹캠 map 좌표로 재탐색 이동
+    1. OAK-D 최초 탐지 전에는 웹캠 ROI 검출과 map 좌표로 접근
+    2. OAK-D가 RC카를 한 번 탐지하면 OAK-D RGB-D 추종으로 영구 전환
+    3. 전환 후에는 웹캠 유실·좌표·재탐색 가이드를 사용하지 않음
     """
 
     def __init__(self, detector=None, action_client=None):
         super().__init__('vehicle_approach_node')
 
         self.declare_parameter('debug_view', True)
+        self.declare_parameter('publish_annotated_image', True)
+        self.declare_parameter('display_rate_hz', 30.0)
+        self.declare_parameter(
+            'annotated_image_topic',
+            '/vehicle_approach/annotated_image',
+        )
         self.declare_parameter('yolo_weights_path', '')
         self.declare_parameter('vehicle_class_id', 0)
         self.declare_parameter('confidence_threshold', 0.75)
@@ -137,6 +147,18 @@ class VehicleApproachNode(Node):
         self.declare_parameter('obstacle_max_depth_m', 3.0)
 
         self._enabled = False
+        self._oakd_takeover = False
+        self._debug_lock = threading.Lock()
+        self._debug_detections = []
+        self._debug_mode = 'WAITING FOR FOLLOW ENABLE'
+        self._debug_distance_m = None
+        self._debug_frame_count = 0
+        self._debug_fps = 0.0
+        self._debug_fps_started = time.monotonic()
+        self._debug_source_frame_count = 0
+        self._debug_source_fps = 0.0
+        self._debug_source_fps_started = time.monotonic()
+        self._latest_debug_rgb_msg = None
 
         self._webcam_visible = False
         self._last_webcam_state_time = None
@@ -182,6 +204,11 @@ class VehicleApproachNode(Node):
         self._obstacle_cloud_publisher = self.create_publisher(
             PointCloud2,
             str(self.get_parameter('obstacle_cloud_topic').value),
+            qos_profile_sensor_data,
+        )
+        self._annotated_image_publisher = self.create_publisher(
+            Image,
+            str(self.get_parameter('annotated_image_topic').value),
             qos_profile_sensor_data,
         )
 
@@ -244,11 +271,18 @@ class VehicleApproachNode(Node):
             str(self.get_parameter('nav_action_name').value),
         )
 
+        # RGB-D 추론/제어와 30 FPS 영상 표시를 서로 다른 callback group에서
+        # 처리한다. 따라서 느린 YOLO/Depth 처리가 RGB 화면 수신을 막지 않는다.
+        self._sync_callback_group = MutuallyExclusiveCallbackGroup()
+        self._display_callback_group = ReentrantCallbackGroup()
+        self._display_publish_callback_group = MutuallyExclusiveCallbackGroup()
+
         rgb_sub = Subscriber(
             self,
             Image,
             str(self.get_parameter('rgb_topic').value),
             qos_profile=qos_profile_sensor_data,
+            callback_group=self._sync_callback_group,
         )
         self._use_compressed_depth = bool(
             self.get_parameter('use_compressed_depth').value
@@ -267,12 +301,14 @@ class VehicleApproachNode(Node):
             depth_message_type,
             depth_topic,
             qos_profile=qos_profile_sensor_data,
+            callback_group=self._sync_callback_group,
         )
         info_sub = Subscriber(
             self,
             CameraInfo,
             str(self.get_parameter('camera_info_topic').value),
             qos_profile=qos_profile_sensor_data,
+            callback_group=self._sync_callback_group,
         )
         self._sync = ApproximateTimeSynchronizer(
             [rgb_sub, depth_sub, info_sub],
@@ -280,10 +316,26 @@ class VehicleApproachNode(Node):
             slop=float(self.get_parameter('sync_slop_s').value),
         )
         self._sync.registerCallback(self._on_synchronized)
+        self._debug_rgb_subscription = self.create_subscription(
+            Image,
+            str(self.get_parameter('rgb_topic').value),
+            self._on_debug_rgb,
+            qos_profile_sensor_data,
+            callback_group=self._display_callback_group,
+        )
+        display_rate_hz = max(
+            1.0,
+            float(self.get_parameter('display_rate_hz').value),
+        )
+        self._display_timer = self.create_timer(
+            1.0 / display_rate_hz,
+            self._publish_debug_frame,
+            callback_group=self._display_publish_callback_group,
+        )
         self._watchdog = self.create_timer(0.2, self._target_watchdog)
 
         logger.info(
-            'OAK-D follower ready with continuous webcam guard and guide; '
+            'OAK-D follower ready: initial webcam guide, then OAK-D only; '
             f'depth_topic={depth_topic} '
             f'({"compressedDepth" if self._use_compressed_depth else "raw"})'
         )
@@ -297,12 +349,13 @@ class VehicleApproachNode(Node):
 
         self._enabled = bool(msg.data)
         self._last_target_seen_time = None
+        self._oakd_takeover = False
         self._webcam_guide_active = False
         self._last_webcam_guide_target_xy = None
         self._pipeline.reset_tracking()
 
         if self._enabled:
-            logger.info('vehicle approach enabled')
+            logger.info('vehicle approach enabled; using initial webcam guide')
             if not self._webcam_is_fresh_and_visible():
                 logger.warning(
                     'approach enabled but RC car is not visible in webcam; '
@@ -327,10 +380,11 @@ class VehicleApproachNode(Node):
         if self._webcam_visible and not previous:
             logger.info('external webcam RC car visible: motion allowed')
         elif not self._webcam_visible and previous:
-            logger.warning(
-                'external webcam RC car disappeared: stopping robot'
-            )
-            if self._enabled:
+            if self._enabled and not self._oakd_takeover:
+                logger.warning(
+                    'external webcam RC car disappeared before OAK-D takeover: '
+                    'stopping robot'
+                )
                 self._stop_all_motion('external webcam lost RC car')
 
     def _on_webcam_map_pose(self, msg: PointStamped) -> None:
@@ -382,14 +436,8 @@ class VehicleApproachNode(Node):
 
         # 장애물 PointCloud는 추종 활성화 전에도 계속 발행한다.
         self._publish_obstacle_cloud(depth_m, depth_msg, info_msg)
-        if not self._enabled:
-            return
 
-        # 외부 웹캠이 RC카를 놓치면 OAK-D 검출 여부와 무관하게 정지한다.
-        if not self._webcam_is_fresh_and_visible():
-            self._stop_all_motion('webcam state false or stale')
-            return
-
+        # 화면의 bbox는 추종 enable/웹캠 상태와 무관하게 항상 갱신한다.
         try:
             frame = self._bridge.imgmsg_to_cv2(
                 rgb_msg,
@@ -410,6 +458,25 @@ class VehicleApproachNode(Node):
             logger.error('invalid camera intrinsics')
             return
         fx, fy, cx, cy = intrinsics
+
+        if not self._enabled:
+            with self._debug_lock:
+                self._debug_detections = list(original_detections)
+                self._debug_mode = 'WAITING FOR FOLLOW ENABLE'
+                self._debug_distance_m = None
+            return
+
+        # OAK-D 인계 전까지만 외부 웹캠을 이동 안전 조건으로 사용한다.
+        if (
+            not self._oakd_takeover
+            and not self._webcam_is_fresh_and_visible()
+        ):
+            self._stop_all_motion('webcam state false or stale before takeover')
+            with self._debug_lock:
+                self._debug_detections = list(original_detections)
+                self._debug_mode = 'WAITING FOR INITIAL WEBCAM GUIDE'
+                self._debug_distance_m = None
+            return
 
         configured_frame = str(self.get_parameter('camera_frame').value)
         self._pipeline.camera_frame = (
@@ -436,6 +503,11 @@ class VehicleApproachNode(Node):
         mode = 'OAK-D LOST'
         if result.target_visible:
             self._last_target_seen_time = self.get_clock().now()
+            if not self._oakd_takeover:
+                self._oakd_takeover = True
+                logger.info(
+                    'OAK-D detected RC car: webcam guidance permanently disabled'
+                )
             self._webcam_guide_active = False
             self._last_webcam_guide_target_xy = None
             mode = 'OAK-D FOLLOW'
@@ -464,24 +536,26 @@ class VehicleApproachNode(Node):
                 if not sent:
                     self._pipeline._last_sent_goal = None
         else:
-            # OAK-D가 잠깐 놓친 경우 즉시 흔들리지 않도록 짧게 기다렸다가
-            # 외부 웹캠 map 좌표 가이드로 전환한다.
-            if self._oakd_target_lost_long_enough():
+            if self._oakd_takeover:
+                # 인계 후에는 웹캠으로 복귀하지 않고 OAK-D 재탐지만 기다린다.
+                if self._oakd_target_lost_long_enough():
+                    self._stop_all_motion('OAK-D target lost after takeover')
+                    mode = 'STOP / OAK-D SEARCH'
+            elif self._oakd_target_lost_long_enough():
                 if self._send_webcam_guide_if_available():
-                    mode = 'WEBCAM GUIDE'
+                    mode = 'INITIAL WEBCAM GUIDE'
                 else:
                     self._stop_all_motion(
                         'OAK-D target lost and webcam guide unavailable'
                     )
                     mode = 'STOP / NO GUIDE'
 
-        if bool(self.get_parameter('debug_view').value):
-            self._show_debug(
-                frame,
-                original_detections,
-                result,
-                mode,
-            )
+        # 표시 콜백은 최신 추론 결과만 복사해 RGB 수신 속도로 그린다.
+        # 이곳에서 imshow하면 동기화/YOLO 속도만큼 화면 FPS가 낮아진다.
+        with self._debug_lock:
+            self._debug_detections = list(original_detections)
+            self._debug_mode = mode
+            self._debug_distance_m = result.target_distance_m
 
     def _oakd_target_lost_long_enough(self) -> bool:
         if self._last_target_seen_time is None:
@@ -499,6 +573,8 @@ class VehicleApproachNode(Node):
     # Webcam fallback guidance
     # ------------------------------------------------------------------
     def _send_webcam_guide_if_available(self) -> bool:
+        if self._oakd_takeover:
+            return False
         if not self._webcam_is_fresh_and_visible():
             return False
         if not self._webcam_pose_is_fresh():
@@ -713,7 +789,10 @@ class VehicleApproachNode(Node):
 
         if self._goal_send_pending or not self._action_client.server_is_ready():
             return False
-        if not self._webcam_is_fresh_and_visible():
+        if (
+            source == 'webcam'
+            and (self._oakd_takeover or not self._webcam_is_fresh_and_visible())
+        ):
             return False
 
         # 새 목표가 오면 이전 목표를 취소한 뒤 재전송한다.
@@ -753,8 +832,16 @@ class VehicleApproachNode(Node):
             self._pipeline._last_sent_goal = None
             return
 
-        if self._cancel_requested or not self._webcam_is_fresh_and_visible():
+        webcam_goal_invalid = (
+            self._active_goal_source == 'webcam'
+            and (
+                self._oakd_takeover
+                or not self._webcam_is_fresh_and_visible()
+            )
+        )
+        if self._cancel_requested or webcam_goal_invalid:
             handle.cancel_goal_async()
+            self._pipeline._last_sent_goal = None
             logger.warning('goal accepted after stop request; cancelling')
             return
 
@@ -812,11 +899,20 @@ class VehicleApproachNode(Node):
         if not self._enabled:
             return
 
-        if not self._webcam_is_fresh_and_visible():
+        if (
+            not self._oakd_takeover
+            and not self._webcam_is_fresh_and_visible()
+        ):
             self._stop_all_motion('webcam RC car lost or heartbeat stale')
             return
 
-        # OAK-D가 유실됐지만 웹캠 좌표가 살아 있으면 재탐색 가이드.
+        # OAK-D 인계 후에는 웹캠으로 절대 복귀하지 않는다.
+        if self._oakd_takeover:
+            if self._oakd_target_lost_long_enough():
+                self._stop_all_motion('OAK-D target lost after takeover')
+            return
+
+        # 인계 전에는 웹캠 좌표로 OAK-D가 볼 수 있는 위치까지 접근한다.
         if self._oakd_target_lost_long_enough():
             if self._send_webcam_guide_if_available():
                 return
@@ -896,7 +992,73 @@ class VehicleApproachNode(Node):
     # ------------------------------------------------------------------
     # Debug / cleanup
     # ------------------------------------------------------------------
-    def _show_debug(self, frame, detections, result, mode: str) -> None:
+    def _on_debug_rgb(self, msg: Image) -> None:
+        if not (
+            bool(self.get_parameter('debug_view').value)
+            or bool(self.get_parameter('publish_annotated_image').value)
+        ):
+            return
+        # 센서 콜백에서는 복사/그리기/발행을 하지 않는다. 최신 메시지만
+        # 보관해야 YOLO 추론 중에도 OAK-D 수신 큐가 밀리지 않는다.
+        with self._debug_lock:
+            self._latest_debug_rgb_msg = msg
+            self._debug_source_frame_count += 1
+
+        elapsed = time.monotonic() - self._debug_source_fps_started
+        if elapsed >= 1.0:
+            with self._debug_lock:
+                self._debug_source_fps = (
+                    self._debug_source_frame_count / elapsed
+                )
+                self._debug_source_frame_count = 0
+            self._debug_source_fps_started = time.monotonic()
+
+    def _publish_debug_frame(self) -> None:
+        """최신 OAK-D 프레임을 고정 표시 주기로 합성·발행한다."""
+        if not (
+            bool(self.get_parameter('debug_view').value)
+            or bool(self.get_parameter('publish_annotated_image').value)
+        ):
+            return
+
+        with self._debug_lock:
+            msg = self._latest_debug_rgb_msg
+            detections = list(self._debug_detections)
+            mode = self._debug_mode
+            distance_m = self._debug_distance_m
+            source_fps = self._debug_source_fps
+
+        if msg is None:
+            return
+        try:
+            frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except Exception as ex:
+            logger.warning(f'debug RGB conversion failed: {ex}')
+            return
+
+        debug = self._render_debug(
+            frame,
+            detections,
+            mode,
+            distance_m,
+            source_fps,
+        )
+        if bool(self.get_parameter('publish_annotated_image').value):
+            annotated = self._bridge.cv2_to_imgmsg(debug, encoding='bgr8')
+            annotated.header = msg.header
+            self._annotated_image_publisher.publish(annotated)
+        if bool(self.get_parameter('debug_view').value):
+            cv2.imshow('vehicle_approach_debug', debug)
+            cv2.waitKey(1)
+
+    def _render_debug(
+        self,
+        frame,
+        detections,
+        mode: str,
+        distance_m=None,
+        source_fps=0.0,
+    ):
         debug = frame.copy()
         best = select_best_detection(
             detections,
@@ -925,8 +1087,8 @@ class VehicleApproachNode(Node):
             )
 
         distance = (
-            f' {result.target_distance_m:.2f}m'
-            if result.target_distance_m is not None
+            f' {distance_m:.2f}m'
+            if distance_m is not None
             else ''
         )
         cv2.putText(
@@ -937,6 +1099,32 @@ class VehicleApproachNode(Node):
             0.75,
             (0, 255, 255),
             2,
+        )
+
+        self._debug_frame_count += 1
+        elapsed = time.monotonic() - self._debug_fps_started
+        if elapsed >= 1.0:
+            self._debug_fps = self._debug_frame_count / elapsed
+            self._debug_frame_count = 0
+            self._debug_fps_started = time.monotonic()
+        cv2.putText(
+            debug,
+            f'DISPLAY {self._debug_fps:.1f} FPS  INPUT {source_fps:.1f} FPS',
+            (10, 60),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.65,
+            (255, 255, 0),
+            2,
+        )
+        return debug
+
+    # 기존 외부 호출/테스트 호환용. 실시간 실행은 _on_debug_rgb를 사용한다.
+    def _show_debug(self, frame, detections, result, mode: str) -> None:
+        debug = self._render_debug(
+            frame,
+            detections,
+            mode,
+            result.target_distance_m,
         )
         cv2.imshow('vehicle_approach_debug', debug)
         cv2.waitKey(1)
@@ -955,9 +1143,12 @@ class VehicleApproachNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = VehicleApproachNode()
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
